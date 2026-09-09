@@ -22,4 +22,12 @@ data class Provider(
     val apiKeyHelpUrl: String? = null,
     /** Whether this provider requires a paid plan / sign-up. */
     val requiresApiKey: Boolean = true,
+    /**
+     * Health-check endpoint used by [ProviderHealthChecker]. By default this
+     * is derived from [defaultEndpoint] by stripping `/chat/completions` and
+     * appending `/models`, which works for every standard OpenAI-compatible
+     * provider. Override only when the provider uses a different scheme
+     * (e.g. Ollama exposes `/api/tags` instead of `/models`).
+     */
+    val healthEndpoint: String? = null,
 )

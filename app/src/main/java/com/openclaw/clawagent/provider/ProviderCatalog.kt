@@ -103,6 +103,8 @@ object ProviderCatalog {
             defaultModel = "llama3.2",
             modelSuggestions = listOf("llama3.2", "qwen2.5", "mistral", "gemma2", "phi3"),
             requiresApiKey = false,
+            // Ollama exposes its model list at /api/tags, not /v1/models.
+            healthEndpoint = "http://10.0.2.2:11434/api/tags",
         ),
     )
 

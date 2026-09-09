@@ -11,6 +11,8 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 /**
  * Unit tests for MainActivity core logic.
@@ -22,6 +24,7 @@ import org.junit.Test
  * - History serialization / deserialization
  * - Build request history (system prompt, context window, truncation)
  */
+@RunWith(RobolectricTestRunner::class)
 class MainActivityTest {
 
     private lateinit var context: Context

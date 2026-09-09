@@ -34,6 +34,13 @@ android {
     buildFeatures {
         viewBinding = true
     }
+
+    // Required by Robolectric to load Android resources on the JVM.
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -53,4 +60,9 @@ dependencies {
     // SseStreamParser tests can parse real JSON on the JVM.
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240205")
+    // Robolectric so MainActivityTest can use ApplicationProvider and the
+    // real SharedPreferences / Context on the JVM (no emulator needed).
+    testImplementation("org.robolectric:robolectric:4.12.1")
+    testImplementation("androidx.test:core:1.5.0")
+    testImplementation("androidx.test.ext:junit:1.1.5")
 }

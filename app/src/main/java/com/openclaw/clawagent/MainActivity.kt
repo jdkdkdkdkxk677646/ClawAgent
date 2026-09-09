@@ -19,6 +19,9 @@ import com.openclaw.clawagent.databinding.DialogSettingsBinding
 import com.openclaw.clawagent.provider.ChatService
 import com.openclaw.clawagent.provider.Provider
 import com.openclaw.clawagent.provider.ProviderCatalog
+import com.openclaw.clawagent.provider.ProviderHealth
+import com.openclaw.clawagent.provider.ProviderHealthCache
+import com.openclaw.clawagent.provider.ProviderHealthChecker
 import com.openclaw.clawagent.provider.SecurePrefs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +39,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: SecurePrefs
     private val chatService = ChatService()
+    private val healthChecker = ProviderHealthChecker()
+    private val healthCache = ProviderHealthCache()
 
     // Role / System prompt
     private var currentRoleKey = SystemPromptManager.Role.GENERAL.key
@@ -397,6 +402,13 @@ class MainActivity : AppCompatActivity() {
         dialogBinding.providerDropdown.setAdapter(adapterSpinner)
         dialogBinding.providerDropdown.setText(current.displayName, false)
 
+        // Render the current health row from the cache (so reopening the
+        // dialog shows the last known result without re-pinging the network).
+        var activeProvider: Provider = current
+        fun renderHealth(p: Provider) {
+            val h = healthCache.get(p.id)
+            dialogBinding.providerHealthText.text = formatHealth(h)
+        }
         fun applyProvider(p: Provider) {
             dialogBinding.modelEdit.setText(p.defaultModel)
             dialogBinding.endpointEdit.setText(p.defaultEndpoint)
@@ -404,12 +416,52 @@ class MainActivity : AppCompatActivity() {
             // For providers that don't require auth, hide the Key field.
             dialogBinding.apiKeyLayout.visibility =
                 if (p.requiresApiKey) View.VISIBLE else View.GONE
+            activeProvider = p
+            renderHealth(p)
         }
         applyProvider(current)
+
+        // Auto-check the currently selected provider the moment the dialog
+        // opens, so the user sees fresh data without clicking.
+        runHealthCheck(current, apiKeyOverride = null) { fresh ->
+            if (fresh.providerId == activeProvider.id) {
+                dialogBinding.providerHealthText.text = formatHealth(fresh)
+            }
+        }
+
+        dialogBinding.btnCheckHealth.setOnClickListener {
+            // Use the current input value (not yet saved) so the user can
+            // re-check right after typing a fresh key.
+            val keyOverride = dialogBinding.apiKeyEdit.text.toString().trim()
+                .ifEmpty { null }
+            runHealthCheck(activeProvider, apiKeyOverride = keyOverride) { fresh ->
+                if (fresh.providerId == activeProvider.id) {
+                    dialogBinding.providerHealthText.text = formatHealth(fresh)
+                    val toast = when (fresh.status) {
+                        ProviderHealth.Status.Ok -> "✅ ${fresh.latencyMs}ms"
+                        ProviderHealth.Status.Slow -> "🐢 ${fresh.latencyMs}ms 较慢"
+                        ProviderHealth.Status.Auth -> "🔑 API Key 无效"
+                        ProviderHealth.Status.Offline -> "📡 连不上 (${fresh.message ?: "网络错误"})"
+                        ProviderHealth.Status.HttpError -> "❌ ${fresh.message ?: "HTTP ${fresh.httpCode}"}"
+                        ProviderHealth.Status.Checking -> "🔄 检测中..."
+                        ProviderHealth.Status.Skipped -> "不支持检测"
+                        ProviderHealth.Status.Unknown -> "未检测"
+                    }
+                    Toast.makeText(this, toast, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
 
         dialogBinding.providerDropdown.setOnItemClickListener { _, _, position, _ ->
             val picked = ProviderCatalog.PROVIDERS[position]
             applyProvider(picked)
+            // Re-check on selection change so the user always sees the
+            // state of the provider they're about to switch to.
+            runHealthCheck(picked, apiKeyOverride = null) { fresh ->
+                if (fresh.providerId == activeProvider.id) {
+                    dialogBinding.providerHealthText.text = formatHealth(fresh)
+                }
+            }
         }
 
         // Context length dropdown
@@ -515,6 +567,42 @@ class MainActivity : AppCompatActivity() {
             binding.inputField.setText(text)
             sendMessage()
         }
+    }
+
+    /**
+     * Run a one-shot health check for [provider] on a background thread, then
+     * cache the result and post [onResult] back on the main thread. The
+     * callback is responsible for guarding against stale results (i.e. the
+     * user may have switched providers in the meantime).
+     */
+    private fun runHealthCheck(
+        provider: Provider,
+        apiKeyOverride: String?,
+        onResult: (ProviderHealth) -> Unit,
+    ) {
+        healthCache.put(ProviderHealth.checking(provider.id))
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                healthChecker.check(provider, apiKeyOverride)
+            }
+            healthCache.put(result)
+            onResult(result)
+        }
+    }
+
+    /**
+     * Format a [ProviderHealth] for the inline text row in the settings
+     * dialog. Keep the string short so it fits next to the check button.
+     */
+    private fun formatHealth(h: ProviderHealth): String = when (h.status) {
+        ProviderHealth.Status.Unknown -> "⚪ 尚未检测"
+        ProviderHealth.Status.Checking -> "⏳ 检测中..."
+        ProviderHealth.Status.Ok -> "🟢 正常 · ${h.latencyMs}ms"
+        ProviderHealth.Status.Slow -> "🟡 较慢 · ${h.latencyMs}ms"
+        ProviderHealth.Status.Auth -> "🔴 API Key 无效"
+        ProviderHealth.Status.Offline -> "🔴 ${h.message ?: "连不上"}"
+        ProviderHealth.Status.HttpError -> "🔴 ${h.message ?: "HTTP ${h.httpCode}"}"
+        ProviderHealth.Status.Skipped -> "⚪ 不支持检测"
     }
 
     companion object {
