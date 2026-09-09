@@ -3,12 +3,16 @@ package com.openclaw.clawagent
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.ArrayAdapter
+import android.widget.ListView
 import android.widget.Toast
+import android.widget.TwoLineListItem
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -32,6 +36,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -60,7 +67,32 @@ class MainActivity : AppCompatActivity() {
         prefs = SecurePrefs(this)
         storage = ConversationStorage(this)
         tree = ConversationTree()
-        storage.load()?.let { (branches, activeId) -> tree.replaceAll(branches, activeId) }
+        val loaded = storage.load()
+        if (loaded != null) {
+            val (branches, activeId) = loaded
+            tree.replaceAll(branches, activeId)
+        } else {
+            // First launch with no branch save: adopt the v1.x single-history
+            // blob (SharedPreferences "claw_history") as the root branch so
+            // upgrading users keep their existing conversation.
+            val legacy = getSharedPreferences("claw_history", MODE_PRIVATE)
+                .getString("history", null)
+            if (!legacy.isNullOrBlank()) {
+                try {
+                    val arr = org.json.JSONArray(legacy)
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.getJSONObject(i)
+                        tree.appendMessage(
+                            obj.optString("role", "user"),
+                            obj.optString("content", ""),
+                        )
+                    }
+                    tree.renameBranch(tree.activeBranchId, "历史对话")
+                    storage.save(tree)
+                } catch (_: Exception) {
+                }
+            }
+        }
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -608,26 +640,96 @@ class MainActivity : AppCompatActivity() {
      */
     private fun showBranchPicker() {
         val branches = tree.allBranches
-        val labels = branches.map { b ->
+        val fmt = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+        val titles = branches.map { b ->
             val marker = if (b.id == tree.activeBranchId) "● " else "  "
-            val markerCount = b.messages.size
             val parent = if (b.parentId != null) " ⤴" else ""
-            "$marker${b.name} · $markerCount 条$parent"
+            "$marker${b.name}$parent"
         }
-        AlertDialog.Builder(this)
-            .setTitle("选择分支")
-            .setItems(labels.toTypedArray()) { _, which ->
-                val target = branches[which]
-                if (target.id != tree.activeBranchId) {
-                    tree.switchTo(target.id)
-                    syncMessagesFromTree()
-                    updateBranchChip()
-                    storage.save(tree)
-                    Toast.makeText(this, "切换到 ${target.name}", Toast.LENGTH_SHORT).show()
+        val metas = branches.map { b ->
+            "${b.messages.size} 条消息 · 创建于 ${fmt.format(Date(b.createdAt))}"
+        }
+
+        val listView = ListView(this)
+        listView.adapter = object : ArrayAdapter<String>(
+            this, android.R.layout.simple_list_item_2, titles
+        ) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
+                (super.getView(position, convertView, parent) as TwoLineListItem).apply {
+                    text1.text = titles[position]
+                    text1.setTextColor(0xFFe2e8f0.toInt())
+                    text1.textSize = 15f
+                    text2.text = metas[position]
+                    text2.setTextColor(0xFF64748b.toInt())
+                    text2.textSize = 11f
                 }
-            }
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("会话分支")
+            .setView(listView)
+            .setPositiveButton("＋ 新分支") { _, _ -> startNewChat() }
+            .setNeutralButton("📤 导出当前分支") { _, _ -> exportActiveBranch() }
             .setNegativeButton("关闭", null)
             .show()
+
+        listView.setOnItemClickListener { _, _, position, _ ->
+            val target = branches[position]
+            if (target.id != tree.activeBranchId) {
+                tree.switchTo(target.id)
+                syncMessagesFromTree()
+                updateBranchChip()
+                storage.save(tree)
+                dialog.dismiss()
+                Toast.makeText(this, "切换到 ${target.name}", Toast.LENGTH_SHORT).show()
+            }
+        }
+        listView.setOnItemLongClickListener { _, _, position, _ ->
+            val target = branches[position]
+            if (target.parentId == null) {
+                Toast.makeText(this, "根分支不可删除", Toast.LENGTH_SHORT).show()
+            } else {
+                AlertDialog.Builder(this)
+                    .setTitle("删除分支")
+                    .setMessage("删除「${target.name}」？其子分支将并入上级分支。")
+                    .setPositiveButton("删除") { _, _ ->
+                        tree.deleteBranch(target.id)
+                        syncMessagesFromTree()
+                        updateBranchChip()
+                        storage.save(tree)
+                        dialog.dismiss()
+                        Toast.makeText(this, "已删除 ${target.name}", Toast.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
+            }
+            true
+        }
+    }
+
+    /** Share the active branch's effective conversation as plain text. */
+    private fun exportActiveBranch() {
+        val msgs = tree.visibleMessages()
+        if (msgs.isEmpty()) {
+            Toast.makeText(this, "当前分支没有消息", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        val text = buildString {
+            appendLine("Claw Agent 对话导出 — ${tree.activeBranch.name}")
+            appendLine("（${fmt.format(Date(System.currentTimeMillis()))}）")
+            appendLine("────────────────────")
+            msgs.forEach { m ->
+                appendLine()
+                appendLine("【${if (m.role == "user") "我" else "Claw"}】${m.content}")
+            }
+        }
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+            putExtra(Intent.EXTRA_TITLE, "Claw Agent — ${tree.activeBranch.name}")
+        }
+        startActivity(Intent.createChooser(send, "导出对话"))
     }
 
     /**
