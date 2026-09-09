@@ -68,7 +68,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendMessage() {
         val text = binding.inputField.text.toString().trim()
-        if (text.isEmpty() || ::isSending.isInitialized && isSending) return
+        if (text.isEmpty()) return
 
         isSending = true
         binding.sendBtn.isEnabled = false
@@ -313,10 +313,10 @@ class MainActivity : AppCompatActivity() {
     @Suppress("UNUSED")
     fun sendQuick(view: View) {
         val text = when (view.id) {
-            R.id.quickWeather -> "今天天气怎么样？"
-            R.id.quickJoke -> "给我讲个笑话"
-            R.id.quickCode -> "帮我写一段Python代码"
-            R.id.quickExplain -> "解释一下量子计算"
+            R.id.btnQuick1 -> "今天天气怎么样？"
+            R.id.btnQuick2 -> "给我讲个笑话"
+            R.id.btnQuick3 -> "帮我写一段Python代码"
+            R.id.btnQuick4 -> "解释一下量子计算"
             else -> ""
         }
         if (text.isNotEmpty()) {
