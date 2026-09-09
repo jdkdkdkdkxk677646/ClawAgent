@@ -49,6 +49,17 @@
             android:backgroundTint="#22263a"
             android:contentDescription="设置"
             android:src="@android:drawable/ic_menu_preferences" />
+
+        <!-- Role selector button (Claude Code style) -->
+        <ImageButton
+            android:id="@+id/roleBtn"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/btn_bg"
+            android:tint="#f97316"
+            android:backgroundTint="#22263a"
+            android:contentDescription="切换角色"
+            android:src="@drawable/ic_claude" />
     </LinearLayout>
 
     <!-- Welcome + Chat, swapped by visibility -->

@@ -1,4 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Claw Agent</string>
+
+    <!-- Role names for system prompt selector -->
+    <string-array name="role_names">
+        <item>通用助手</item>
+        <item>代码专家</item>
+        <item>翻译官</item>
+    </string-array>
+
+    <string-array name="role_keys">
+        <item>general</item>
+        <item>code_expert</item>
+        <item>translator</item>
+    </string-array>
+
+    <string name="role_selector_title">选择角色</string>
+    <string name="role_general">通用助手</string>
+    <string name="role_code_expert">代码专家</string>
+    <string name="role_translator">翻译官</string>
 </resources>

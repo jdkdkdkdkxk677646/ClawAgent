@@ -37,6 +37,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SecurePrefs
     private val chatService = ChatService()
 
+    // Role / System prompt
+    private var currentRoleKey = SystemPromptManager.Role.GENERAL.key
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = SecurePrefs(this)
@@ -47,6 +50,7 @@ class MainActivity : AppCompatActivity() {
         setupRecyclerView()
         setupListeners()
         loadHistory()
+        updateRoleButton()
         binding.inputField.requestFocus()
     }
 
@@ -76,6 +80,44 @@ class MainActivity : AppCompatActivity() {
         }
         binding.settingsBtn.setOnClickListener { showSettings() }
         binding.newChatBtn.setOnClickListener { startNewChat() }
+        binding.roleBtn.setOnClickListener { showRoleSelector() }
+    }
+
+    // ─── Role / System Prompt ───────────────────────────────────────
+
+    private fun updateRoleButton() {
+        val role = SystemPromptManager.getRoleDisplayName(currentRoleKey)
+        binding.roleBtn.contentDescription = "当前角色: $role"
+    }
+
+    private fun showRoleSelector() {
+        val roles = SystemPromptManager.getRoleNames()
+        AlertDialog.Builder(this)
+            .setTitle("选择角色")
+            .setItems(roles.toTypedArray()) { _, which ->
+                val keys = SystemPromptManager.getRoleKeys()
+                if (which in keys.indices) {
+                    currentRoleKey = keys[which]
+                    prefs.systemPrompt = SystemPromptManager.getPrompt(currentRoleKey)
+                    updateRoleButton()
+                    Toast.makeText(
+                        this,
+                        "已切换为：${roles[which]}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    messages.add(
+                        ChatMessage(
+                            "system",
+                            "[角色已切换为 ${roles[which]}]"
+                        )
+                    )
+                    adapter.notifyItemInserted(messages.size - 1)
+                    updateChatVisibility()
+                    scrollToBottom()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     private fun updateChatVisibility() {
