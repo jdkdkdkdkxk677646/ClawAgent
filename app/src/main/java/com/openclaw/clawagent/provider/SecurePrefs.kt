@@ -62,6 +62,15 @@ class SecurePrefs(context: Context) {
         get() = plain.getBoolean(KEY_STREAM, true)
         set(value) = plain.edit().putBoolean(KEY_STREAM, value).apply()
 
+    /**
+     * How many trailing history messages to send with each request.
+     * 0 = unlimited. Capped so long conversations don't blow up token
+     * usage and request size.
+     */
+    var contextLimit: Int
+        get() = plain.getInt(KEY_CONTEXT_LIMIT, DEFAULT_CONTEXT_LIMIT)
+        set(value) = plain.edit().putInt(KEY_CONTEXT_LIMIT, value).apply()
+
     // ----- API key (encrypted, when available) -----
 
     /** Returns the persisted API key, or "" if unset or encrypted storage failed. */
@@ -103,6 +112,9 @@ class SecurePrefs(context: Context) {
         private const val KEY_ENDPOINT = "api_endpoint"
         private const val KEY_KEEP_CONTEXT = "keep_context"
         private const val KEY_STREAM = "stream"
+        private const val KEY_CONTEXT_LIMIT = "context_limit"
+
+        const val DEFAULT_CONTEXT_LIMIT = 20
 
         private const val KEY_API_KEY = "api_key"
         // Legacy key from the original release. Read once for migration, then

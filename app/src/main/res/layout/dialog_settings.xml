@@ -114,7 +114,6 @@
                 android:id="@+id/apiKeyEdit"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="sk-..."
                 android:textSize="13sp"
                 android:inputType="textPassword" />
         </com.google.android.material.textfield.TextInputLayout>
@@ -154,6 +153,30 @@
                 android:checked="true"
                 android:textColor="#e2e8f0" />
         </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🧠 上下文长度"
+            android:textColor="#64748b"
+            android:textSize="12sp"
+            android:textAllCaps="true"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="随请求发送的历史条数"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+
+            <AutoCompleteTextView
+                android:id="@+id/contextLimitDropdown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none"
+                android:textSize="14sp" />
+        </com.google.android.material.textfield.TextInputLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
