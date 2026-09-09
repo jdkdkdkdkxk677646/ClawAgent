@@ -80,7 +80,8 @@ class SecurePrefs(context: Context) {
         set(value) = plain.edit().putString(KEY_SYSTEM_PROMPT, value).apply()
 
     /**
-     * Whether the model may call built-in tools (calculator, clock) via
+     * Whether the model may use its tool claw-set (http fetch, notes, device
+     * info, clipboard, notifications, reminders, calculator, clock) via
      * OpenAI-compatible function calling. Off by default: older or smaller
      * models / providers may not support `tools` and would error out.
      */

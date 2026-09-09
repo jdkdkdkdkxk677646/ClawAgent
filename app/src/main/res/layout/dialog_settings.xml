@@ -282,14 +282,14 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Agent 工具调用"
+                    android:text="🦾 Agent 模式(自主任务执行)"
                     android:textColor="#e2e8f0"
                     android:textSize="14sp" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="允许模型调用计算器/时钟等工具(需模型支持 Function Calling)"
+                    android:text="开启后 Agent 可多步调用工具:网页抓取、持久笔记、设备信息、剪贴板、通知、提醒、计算器、时钟(需模型支持 Function Calling)"
                     android:textColor="#64748b"
                     android:textSize="11sp"
                     android:layout_marginTop="2dp" />

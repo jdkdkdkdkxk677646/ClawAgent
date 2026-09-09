@@ -71,9 +71,9 @@ class CalculatorToolTest {
     }
 
     @Test
-    fun `request json advertises both tools`() {
-        val json = AgentTools.requestJson()
-        assertEquals(2, json.length())
+    fun `request json advertises core tools`() {
+        val json = AgentToolbox.core(notesTempDir()).requestJson()
+        assertEquals(4, json.length())
         val names = (0 until json.length()).map { i ->
             json.getJSONObject(i).getJSONObject("function").getString("name")
         }
@@ -83,8 +83,11 @@ class CalculatorToolTest {
 
     @Test
     fun `unknown tool returns graceful message`() {
-        val result = AgentTools.execute("no_such_tool", "{}")
+        val result = AgentToolbox.core(notesTempDir()).execute("no_such_tool", "{}")
         assertTrue("应为错误信息: $result", result.contains("未找到"))
         assertTrue("应列出可用工具: $result", result.contains("calculator"))
     }
+
+    private fun notesTempDir(): java.io.File =
+        java.nio.file.Files.createTempDirectory("claw_calc_test").toFile()
 }

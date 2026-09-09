@@ -17,7 +17,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.openclaw.clawagent.agent.AgentTools
+import com.openclaw.clawagent.agent.AgentDirective
+import com.openclaw.clawagent.agent.AgentToolbox
 import com.openclaw.clawagent.conversation.BranchMessage
 import com.openclaw.clawagent.conversation.ConversationBranch
 import com.openclaw.clawagent.conversation.ConversationStorage
@@ -53,6 +54,11 @@ class MainActivity : AppCompatActivity() {
     private val healthChecker = ProviderHealthChecker()
     private val healthCache = ProviderHealthCache()
 
+    // The full tool claw-set (http fetch, notes, device info, clipboard,
+    // notifications, reminders, calculator, clock). Built once with the app
+    // context; execution happens off the main thread in the agent loop.
+    private lateinit var toolbox: AgentToolbox
+
     // Conversation tree with branches. Always non-null after onCreate; we
     // keep a `messages` mirror of `tree.visibleMessages()` so the existing
     // adapter/data flow keeps working.
@@ -65,6 +71,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = SecurePrefs(this)
+        toolbox = AgentToolbox.forAndroid(applicationContext)
         storage = ConversationStorage(this)
         tree = ConversationTree()
         val loaded = storage.load()
@@ -274,9 +281,15 @@ class MainActivity : AppCompatActivity() {
      * (the agent's persona) always leads the request, regardless of limits.
      */
     private fun buildRequestHistory(text: String): List<ChatService.Message> {
-        val systemMessages = prefs.systemPrompt.trim().takeIf { it.isNotEmpty() }
-            ?.let { listOf(ChatService.Message("system", it)) }
-            ?: emptyList()
+        val systemMessages = buildList {
+            val persona = prefs.systemPrompt.trim()
+            if (persona.isNotEmpty()) add(ChatService.Message("system", persona))
+            // Agent mode: tell the model it is an agent and hand it the live
+            // toolbox inventory, so it plans multi-step tool work.
+            if (prefs.agentMode) {
+                add(ChatService.Message("system", AgentDirective.systemPrompt(toolbox)))
+            }
+        }
         if (!prefs.keepContext) {
             return systemMessages + listOf(ChatService.Message("user", text))
         }
@@ -301,7 +314,7 @@ class MainActivity : AppCompatActivity() {
         model: String,
     ) {
         val conversation = initialHistory.toMutableList()
-        val toolsJson = if (prefs.agentMode) AgentTools.requestJson() else null
+        val toolsJson = if (prefs.agentMode) toolbox.requestJson() else null
 
         var round = 0
         while (true) {
@@ -374,10 +387,12 @@ class MainActivity : AppCompatActivity() {
             )
             for (call in calls) {
                 val result = withContext(Dispatchers.Default) {
-                    runCatching { AgentTools.execute(call.name, call.arguments) }
+                    runCatching { toolbox.execute(call.name, call.arguments) }
                         .getOrElse { "工具执行失败:${it.message}" }
                 }
-                assistantMsg.content += "↳ $result\n"
+                // Bubble shows a short preview; the full result always goes
+                // back to the model — long fetches would flood the chat UI.
+                assistantMsg.content += "↳ " + previewOf(result) + "\n"
                 adapter.notifyItemChanged(assistantIndex)
                 scrollToBottom()
                 conversation += ChatService.Message(
@@ -390,6 +405,15 @@ class MainActivity : AppCompatActivity() {
             assistantMsg.content += "\n"
         }
     }
+
+    /** Tool-result preview for the chat bubble: short head + full-size note. */
+    private fun previewOf(result: String): String =
+        if (result.length <= RESULT_PREVIEW_CHARS) {
+            result
+        } else {
+            result.take(RESULT_PREVIEW_CHARS) +
+                "…(共 ${result.length} 字符,已完整提供给模型)"
+        }
 
     private fun updateSendButton() {
         if (isSending) {
@@ -818,6 +842,7 @@ class MainActivity : AppCompatActivity() {
         private const val MAX_SAVED_MESSAGES = 300
 
         /** Cap on model rounds per user turn in agent mode (tool-call loop). */
-        private const val MAX_TOOL_ROUNDS = 5
+        private const val MAX_TOOL_ROUNDS = 15
+        private const val RESULT_PREVIEW_CHARS = 300
     }
 }

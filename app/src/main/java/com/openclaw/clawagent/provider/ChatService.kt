@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit
  * how to render the streamed text.
  *
  * Agent support: pass [streamChat]'s `tools` (a `tools` JSON array, see
- * [com.openclaw.clawagent.agent.AgentTools.requestJson]) and the flow emits
+ * [com.openclaw.clawagent.agent.AgentToolbox.requestJson]) and the flow emits
  * [StreamEvent.ToolCalls] when the model requests tool executions. The caller
  * runs the tools and loops with the results appended as `role:"tool"`
  * messages ([Message.toolCallId]).
