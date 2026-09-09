@@ -30,6 +30,7 @@ class MainActivity : AppCompatActivity() {
     private var selectedModel = "step-3.7-flash"
     private var keepContext = true
     private var streamOutput = true
+    private var isSending = false
     private val client = OkHttpClient()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,6 +67,16 @@ class MainActivity : AppCompatActivity() {
         binding.newChatBtn.setOnClickListener { startNewChat() }
     }
 
+    private fun updateChatVisibility() {
+        if (messages.isEmpty()) {
+            binding.welcomeLayout.visibility = View.VISIBLE
+            binding.recyclerView.visibility = View.GONE
+        } else {
+            binding.welcomeLayout.visibility = View.GONE
+            binding.recyclerView.visibility = View.VISIBLE
+        }
+    }
+
     private fun sendMessage() {
         val text = binding.inputField.text.toString().trim()
         if (text.isEmpty()) return
@@ -77,6 +88,7 @@ class MainActivity : AppCompatActivity() {
         // Add user message
         messages.add(ChatMessage("user", text))
         adapter.notifyItemInserted(messages.size - 1)
+        updateChatVisibility()
         scrollToBottom()
 
         // Create assistant placeholder
@@ -262,6 +274,7 @@ class MainActivity : AppCompatActivity() {
         messages.clear()
         adapter.notifyDataSetChanged()
         saveHistory()
+        updateChatVisibility()
         binding.inputField.requestFocus()
     }
 
@@ -306,6 +319,7 @@ class MainActivity : AppCompatActivity() {
                 messages.add(ChatMessage(obj.getString("role"), obj.getString("content")))
             }
             adapter.notifyDataSetChanged()
+            updateChatVisibility()
             if (messages.isNotEmpty()) scrollToBottom()
         } catch (_: Exception) {}
     }
@@ -325,7 +339,4 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    companion object {
-        private var isSending = false
-    }
 }

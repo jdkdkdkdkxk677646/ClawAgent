@@ -51,108 +51,114 @@
             android:src="@android:drawable/ic_menu_preferences" />
     </LinearLayout>
 
-    <!-- Welcome Screen -->
-    <LinearLayout
-        android:id="@+id/welcomeLayout"
+    <!-- Welcome + Chat, swapped by visibility -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:padding="32dp">
+        android:layout_weight="1">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🦀"
-            android:textSize="72sp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="AI Claw Agent"
-            android:textColor="#e2e8f0"
-            android:textSize="24sp"
-            android:textStyle="bold"
-            android:layout_marginTop="16dp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="你的智能助手，随时待命"
-            android:textColor="#94a3b8"
-            android:textSize="14sp"
-            android:layout_marginTop="8dp" />
-
-        <GridLayout
+        <!-- Welcome Screen -->
+        <LinearLayout
+            android:id="@+id/welcomeLayout"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:columnCount="2"
-            android:rowCount="2"
-            android:layout_marginTop="24dp">
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="32dp">
 
-            <Button
-                android:id="@+id/btnQuick1"
-                android:onClick="sendQuick"
-                android:layout_width="0dp"
+            <TextView
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_columnWeight="1"
-                android:layout_rowWeight="1"
-                android:text="查天气"
-                android:textSize="13sp"
-                android:background="@drawable/quick_btn_bg"
-                android:textColor="#e2e8f0"
-                android:layout_margin="4dp" />
+                android:text="🦀"
+                android:textSize="72sp" />
 
-            <Button
-                android:id="@+id/btnQuick2"
-                android:onClick="sendQuick"
-                android:layout_width="0dp"
+            <TextView
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_columnWeight="1"
-                android:layout_rowWeight="1"
-                android:text="讲笑话"
-                android:textSize="13sp"
-                android:background="@drawable/quick_btn_bg"
+                android:text="AI Claw Agent"
                 android:textColor="#e2e8f0"
-                android:layout_margin="4dp" />
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:layout_marginTop="16dp" />
 
-            <Button
-                android:id="@+id/btnQuick3"
-                android:onClick="sendQuick"
-                android:layout_width="0dp"
+            <TextView
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_columnWeight="1"
-                android:layout_rowWeight="1"
-                android:text="写代码"
-                android:textSize="13sp"
-                android:background="@drawable/quick_btn_bg"
-                android:textColor="#e2e8f0"
-                android:layout_margin="4dp" />
+                android:text="你的智能助手，随时待命"
+                android:textColor="#94a3b8"
+                android:textSize="14sp"
+                android:layout_marginTop="8dp" />
 
-            <Button
-                android:id="@+id/btnQuick4"
-                android:onClick="sendQuick"
-                android:layout_width="0dp"
+            <GridLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_columnWeight="1"
-                android:layout_rowWeight="1"
-                android:text="解释概念"
-                android:textSize="13sp"
-                android:background="@drawable/quick_btn_bg"
-                android:textColor="#e2e8f0"
-                android:layout_margin="4dp" />
-        </GridLayout>
-    </LinearLayout>
+                android:columnCount="2"
+                android:rowCount="2"
+                android:layout_marginTop="24dp">
 
-    <!-- Chat RecyclerView -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerView"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:padding="16dp"
-        android:clipToPadding="false" />
+                <Button
+                    android:id="@+id/btnQuick1"
+                    android:onClick="sendQuick"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_rowWeight="1"
+                    android:text="查天气"
+                    android:textSize="13sp"
+                    android:background="@drawable/quick_btn_bg"
+                    android:textColor="#e2e8f0"
+                    android:layout_margin="4dp" />
+
+                <Button
+                    android:id="@+id/btnQuick2"
+                    android:onClick="sendQuick"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_rowWeight="1"
+                    android:text="讲笑话"
+                    android:textSize="13sp"
+                    android:background="@drawable/quick_btn_bg"
+                    android:textColor="#e2e8f0"
+                    android:layout_margin="4dp" />
+
+                <Button
+                    android:id="@+id/btnQuick3"
+                    android:onClick="sendQuick"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_rowWeight="1"
+                    android:text="写代码"
+                    android:textSize="13sp"
+                    android:background="@drawable/quick_btn_bg"
+                    android:textColor="#e2e8f0"
+                    android:layout_margin="4dp" />
+
+                <Button
+                    android:id="@+id/btnQuick4"
+                    android:onClick="sendQuick"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_rowWeight="1"
+                    android:text="解释概念"
+                    android:textSize="13sp"
+                    android:background="@drawable/quick_btn_bg"
+                    android:textColor="#e2e8f0"
+                    android:layout_margin="4dp" />
+            </GridLayout>
+        </LinearLayout>
+
+        <!-- Chat RecyclerView -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="16dp"
+            android:clipToPadding="false"
+            android:visibility="gone" />
+    </FrameLayout>
 
     <!-- Input Area -->
     <LinearLayout
