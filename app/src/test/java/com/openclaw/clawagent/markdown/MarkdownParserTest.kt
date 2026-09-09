@@ -91,7 +91,7 @@ class MarkdownParserTest {
         assertEquals(
             listOf(
                 Segment.CodeBlock("a", "1\n"),
-                Segment.Text("mid"),
+                Segment.Text("mid\n"), // trailing \n kept: code block starts on its own line
                 Segment.CodeBlock("b", "2\n"),
             ),
             parse("```a\n1\n```\nmid\n```b\n2\n```"),
