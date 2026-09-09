@@ -310,6 +310,21 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {}
     }
 
+    @Suppress("UNUSED")
+    fun sendQuick(view: View) {
+        val text = when (view.id) {
+            R.id.quickWeather -> "今天天气怎么样？"
+            R.id.quickJoke -> "给我讲个笑话"
+            R.id.quickCode -> "帮我写一段Python代码"
+            R.id.quickExplain -> "解释一下量子计算"
+            else -> ""
+        }
+        if (text.isNotEmpty()) {
+            binding.inputField.setText(text)
+            sendMessage()
+        }
+    }
+
     companion object {
         private var isSending = false
     }

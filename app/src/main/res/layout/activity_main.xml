@@ -12,19 +12,18 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingHorizontal="16dp"
-        android:background="#1a1d27"
-        android:elevation="2dp">
+        android:background="#1a1d27">
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="🦀 Claw Agent"
+            android:text="Claw Agent"
             android:textColor="#e2e8f0"
             android:textSize="18sp"
             android:textStyle="bold" />
 
-        <View
+        <TextView
             android:layout_width="8dp"
             android:layout_height="8dp"
             android:background="@drawable/status_dot"
@@ -35,12 +34,11 @@
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:background="@drawable/btn_bg"
-            android:src="＋"
-            android:textColor="#94a3b8"
             android:tint="#94a3b8"
             android:backgroundTint="#22263a"
             android:contentDescription="新对话"
-            android:layout_marginEnd="4dp" />
+            android:layout_marginEnd="4dp"
+            android:text="+" />
 
         <ImageButton
             android:id="@+id/settingsBtn"
@@ -52,15 +50,6 @@
             android:contentDescription="设置"
             android:src="@android:drawable/ic_menu_preferences" />
     </LinearLayout>
-
-    <!-- Chat RecyclerView -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerView"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:padding="16dp"
-        android:clipToPadding="false" />
 
     <!-- Welcome Screen -->
     <LinearLayout
@@ -100,8 +89,7 @@
             android:layout_height="wrap_content"
             android:columnCount="2"
             android:rowCount="2"
-            android:layout_marginTop="24dp"
-            android:alignmentMode="alignMargins">
+            android:layout_marginTop="24dp">
 
             <Button
                 android:onClick="sendQuick"
@@ -109,7 +97,7 @@
                 android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
                 android:layout_rowWeight="1"
-                android:text="🌤️ 查天气"
+                android:text="查天气"
                 android:textSize="13sp"
                 android:background="@drawable/quick_btn_bg"
                 android:textColor="#e2e8f0"
@@ -121,7 +109,7 @@
                 android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
                 android:layout_rowWeight="1"
-                android:text="😄 讲笑话"
+                android:text="讲笑话"
                 android:textSize="13sp"
                 android:background="@drawable/quick_btn_bg"
                 android:textColor="#e2e8f0"
@@ -133,7 +121,7 @@
                 android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
                 android:layout_rowWeight="1"
-                android:text="🐍 写代码"
+                android:text="写代码"
                 android:textSize="13sp"
                 android:background="@drawable/quick_btn_bg"
                 android:textColor="#e2e8f0"
@@ -145,7 +133,7 @@
                 android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
                 android:layout_rowWeight="1"
-                android:text="⚛️ 解释概念"
+                android:text="解释概念"
                 android:textSize="13sp"
                 android:background="@drawable/quick_btn_bg"
                 android:textColor="#e2e8f0"
@@ -153,12 +141,22 @@
         </GridLayout>
     </LinearLayout>
 
+    <!-- Chat RecyclerView -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="16dp"
+        android:clipToPadding="false" />
+
     <!-- Input Area -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="12dp 16dp 20dp"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="12dp"
         android:background="#0f1117"
         android:gravity="center_vertical">
 
@@ -168,7 +166,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:background="#1a1d27"
-            android:hint="和 Claw 说点什么…"
+            android:hint="和 Claw 说点什么..."
             android:textColor="#e2e8f0"
             android:textColorHint="#64748b"
             android:textSize="15sp"
@@ -176,14 +174,13 @@
             android:paddingVertical="10dp"
             android:maxLines="5"
             android:inputType="textMultiLine|textCapSentences"
-            android:imeOptions="actionSend"
-            android:backgroundTint="#6366f1" />
+            android:imeOptions="actionSend" />
 
         <ImageButton
             android:id="@+id/sendBtn"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="➤"
+            android:src="@android:drawable/ic_menu_send"
             android:background="@drawable/send_btn_bg"
             android:tint="#ffffff"
             android:layout_marginStart="10dp"
