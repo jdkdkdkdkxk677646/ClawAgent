@@ -2,9 +2,9 @@ package com.openclaw.clawagent
 
 import android.content.Context
 import android.widget.Toast
+import android.util.Log
 import androidx.appcompat.app.AlertDialog
 import kotlinx.coroutines.CoroutineExceptionHandler
-import timber.log.Timber
 
 /**
  * Global error handler for the Claw Agent app.
@@ -171,11 +171,11 @@ object ErrorHandler {
 
     private fun log(error: ClassifiedError) {
         when (error.category) {
-            Category.CANCELLED -> Timber.d("$TAG: ${error.message}")
-            Category.NETWORK -> Timber.w("$TAG: Network error – ${error.message}", error.cause)
-            Category.AUTH -> Timber.w("$TAG: Auth error – ${error.message}", error.cause)
-            Category.PARSING -> Timber.e("$TAG: Parse error – ${error.message}", error.cause)
-            Category.UNKNOWN -> Timber.e(error.cause, "$TAG: Unknown error – ${error.message}")
+            Category.CANCELLED -> Log.d(TAG, error.message)
+            Category.NETWORK -> Log.w(TAG, "Network error – ${error.message}", error.cause)
+            Category.AUTH -> Log.w(TAG, "Auth error – ${error.message}", error.cause)
+            Category.PARSING -> Log.e(TAG, "Parse error – ${error.message}", error.cause)
+            Category.UNKNOWN -> Log.e(error.cause, "$TAG: Unknown error – ${error.message}")
         }
     }
 
