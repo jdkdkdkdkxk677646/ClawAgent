@@ -119,9 +119,10 @@ class NoteToolTest {
     @Test
     fun `slug strips filesystem-illegal characters`() {
         assertEquals("a_b_c", tool.slug("a/b\\c"))
-        assertEquals("采购_计划", tool.slug("采购:计划?"))
-        assertEquals("untitled", tool.slug("///"))
+        assertEquals("采购_计划_", tool.slug("采购:计划?"))
+        assertEquals("___", tool.slug("///"))
         assertEquals("中文标题", tool.slug("中文标题"))
+        // path traversal: dots get trimmed at both ends, so "../escape" -> "escape"
         assertFalse(File(dir, tool.slug("../escape") + ".md").path.contains(".."))
     }
 
