@@ -5,6 +5,9 @@ import android.widget.Toast
 import android.util.Log
 import androidx.appcompat.app.AlertDialog
 import kotlinx.coroutines.CoroutineExceptionHandler
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 /**
  * Global error handler for the Claw Agent app.
@@ -175,7 +178,7 @@ object ErrorHandler {
             Category.NETWORK -> Log.w(TAG, "Network error – ${error.message}", error.cause)
             Category.AUTH -> Log.w(TAG, "Auth error – ${error.message}", error.cause)
             Category.PARSING -> Log.e(TAG, "Parse error – ${error.message}", error.cause)
-            Category.UNKNOWN -> Log.e(error.cause, "$TAG: Unknown error – ${error.message}")
+            Category.UNKNOWN -> Log.e(TAG, "Unknown error – ${error.message}", error.cause)
         }
     }
 
