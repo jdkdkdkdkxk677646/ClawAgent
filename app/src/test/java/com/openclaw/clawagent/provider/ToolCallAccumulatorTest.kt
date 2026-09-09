@@ -90,7 +90,8 @@ class ToolCallAccumulatorTest {
         )
         val frame = frameOf(buffer)
         assertEquals("", frame.contentDelta)
-        assertTrue(frame.toolCallFragments != null && frame.toolCallFragments.length() == 1)
+        val fragments = frame.toolCallFragments
+        assertTrue(fragments != null && fragments.length() == 1)
     }
 
     @Test
