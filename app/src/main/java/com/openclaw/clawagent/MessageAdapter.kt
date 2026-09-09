@@ -27,18 +27,22 @@ data class ChatMessage(val role: String, var content: String)
  * all `style=` attributes, so code blocks rendered as plain prose.
  *
  * The raw (unrendered) text is emitted through [onCopy] on long-press so the
- * clipboard gets exactly what the model wrote.
+ * clipboard gets exactly what the model wrote. Position is passed back so
+ * the Activity can also offer branch-related actions ("fork from here").
  */
 class MessageAdapter(
     private val messages: List<ChatMessage>,
     private val onCopy: (String) -> Unit = {},
+    private val onMessageLongClick: ((position: Int, message: ChatMessage) -> Unit)? = null,
 ) : RecyclerView.Adapter<MessageAdapter.VH>() {
 
     inner class VH(val binding: ItemMessageBinding) : RecyclerView.ViewHolder(binding.root) {
         init {
             binding.messageText.setOnLongClickListener {
                 val pos = adapterPosition
-                if (pos != RecyclerView.NO_POSITION) onCopy(messages[pos].content)
+                if (pos == RecyclerView.NO_POSITION) return@setOnLongClickListener true
+                onMessageLongClick?.invoke(pos, messages[pos])
+                onCopy(messages[pos].content)
                 true
             }
         }

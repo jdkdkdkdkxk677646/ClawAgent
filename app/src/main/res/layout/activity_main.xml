@@ -15,13 +15,22 @@
         android:background="#1a1d27">
 
         <TextView
+            android:id="@+id/branchChip"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Claw Agent"
+            android:text="🌿 main"
             android:textColor="#e2e8f0"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:background="?attr/selectableItemBackground"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="6dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:drawableEnd="@android:drawable/arrow_down_float"
+            android:drawableTint="#94a3b8"
+            android:drawablePadding="4dp" />
 
         <TextView
             android:layout_width="8dp"

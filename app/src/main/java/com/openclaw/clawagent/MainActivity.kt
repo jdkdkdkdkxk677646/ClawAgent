@@ -14,6 +14,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.openclaw.clawagent.agent.AgentTools
+import com.openclaw.clawagent.conversation.BranchMessage
+import com.openclaw.clawagent.conversation.ConversationStorage
+import com.openclaw.clawagent.conversation.ConversationTree
 import com.openclaw.clawagent.databinding.ActivityMainBinding
 import com.openclaw.clawagent.databinding.DialogSettingsBinding
 import com.openclaw.clawagent.provider.ChatService
@@ -42,27 +45,39 @@ class MainActivity : AppCompatActivity() {
     private val healthChecker = ProviderHealthChecker()
     private val healthCache = ProviderHealthCache()
 
+    // Conversation tree with branches. Always non-null after onCreate; we
+    // keep a `messages` mirror of `tree.visibleMessages()` so the existing
+    // adapter/data flow keeps working.
+    private lateinit var tree: ConversationTree
+    private lateinit var storage: ConversationStorage
+
     // Role / System prompt
     private var currentRoleKey = SystemPromptManager.Role.GENERAL.key
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = SecurePrefs(this)
+        storage = ConversationStorage(this)
+        tree = ConversationTree()
+        storage.load()?.let { (branches, activeId) -> tree.replaceAll(branches, activeId) }
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         setupRecyclerView()
         setupListeners()
-        loadHistory()
+        syncMessagesFromTree()
+        updateBranchChip()
         updateRoleButton()
         binding.inputField.requestFocus()
     }
 
     private fun setupRecyclerView() {
-        adapter = MessageAdapter(messages) { raw ->
-            copyToClipboard(raw)
-        }
+        adapter = MessageAdapter(
+            messages,
+            onCopy = { raw -> copyToClipboard(raw) },
+            onMessageLongClick = { position, _ -> showMessageContextMenu(position) },
+        )
         binding.recyclerView.layoutManager = LinearLayoutManager(this).apply {
             stackFromEnd = true
         }
@@ -86,6 +101,7 @@ class MainActivity : AppCompatActivity() {
         binding.settingsBtn.setOnClickListener { showSettings() }
         binding.newChatBtn.setOnClickListener { startNewChat() }
         binding.roleBtn.setOnClickListener { showRoleSelector() }
+        binding.branchChip.setOnClickListener { showBranchPicker() }
     }
 
     // ─── Role / System Prompt ───────────────────────────────────────
@@ -152,10 +168,11 @@ class MainActivity : AppCompatActivity() {
         updateSendButton()
         binding.inputField.setText("")
 
-        messages.add(ChatMessage("user", text))
-        adapter.notifyItemInserted(messages.size - 1)
-        updateChatVisibility()
-        scrollToBottom()
+        // Push the user message into the tree BEFORE mirroring to messages,
+        // so the new entry is preserved across a save/load round trip even
+        // if the process dies mid-stream.
+        tree.appendMessage("user", text)
+        syncMessagesFromTree()
 
         // Empty placeholder that the streaming response will fill in.
         val assistantMsg = ChatMessage("assistant", "")
@@ -200,6 +217,12 @@ class MainActivity : AppCompatActivity() {
                 }
                 adapter.notifyItemChanged(assistantIndex)
             } finally {
+                // Persist the streaming reply into the active branch. The
+                // user message is already there; we just need the assistant's
+                // final content.
+                tree.activeBranch.messages.add(
+                    BranchMessage("assistant", assistantMsg.content)
+                )
                 saveHistory()
                 isSending = false
                 sendJob = null
@@ -511,46 +534,129 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startNewChat() {
-        messages.clear()
-        adapter.notifyDataSetChanged()
+        // Open a new branch off the current active one, inheriting zero
+        // messages — i.e. a clean slate while preserving the old thread.
+        // If the active branch is already empty, we just no-op rather than
+        // spamming the user with empty "Branch N" entries.
+        if (tree.activeBranch.messages.isEmpty() && tree.allBranches.size == 1) {
+            binding.inputField.requestFocus()
+            return
+        }
+        val newBranch = tree.forkAt(messageIndex = 0, name = "新对话 ${tree.allBranches.size + 1}")
+        syncMessagesFromTree()
+        updateBranchChip()
         saveHistory()
-        updateChatVisibility()
         binding.inputField.requestFocus()
+        Toast.makeText(this, "已开新分支:${newBranch.name}", Toast.LENGTH_SHORT).show()
     }
 
     private fun saveHistory() {
-        // Cap what we persist — SharedPreferences is not the place for a
-        // multi-megabyte transcript.
-        val toSave = if (messages.size > MAX_SAVED_MESSAGES) {
-            messages.takeLast(MAX_SAVED_MESSAGES)
-        } else {
-            messages
-        }
-        val json = org.json.JSONArray()
-        toSave.forEach {
-            json.put(org.json.JSONObject().apply {
-                put("role", it.role)
-                put("content", it.content)
-            })
-        }
-        getSharedPreferences("claw_history", MODE_PRIVATE).edit()
-            .putString("history", json.toString())
-            .apply()
+        // Persist the full conversation tree. Storage caps each branch's
+        // own message count; combined with the existing MAX_SAVED_MESSAGES
+        // cap, we stay well within SharedPreferences' comfortable range.
+        capActiveBranch()
+        storage.save(tree)
     }
 
     private fun loadHistory() {
-        val jsonStr = getSharedPreferences("claw_history", MODE_PRIVATE)
-            .getString("history", null) ?: return
-        try {
-            val json = org.json.JSONArray(jsonStr)
-            for (i in 0 until json.length()) {
-                val obj = json.getJSONObject(i)
-                messages.add(ChatMessage(obj.getString("role"), obj.getString("content")))
+        // loadHistory is now invoked from onCreate, which already calls
+        // syncMessagesFromTree() right after. We keep this method (no-op)
+        // so any external caller doesn't have to change.
+    }
+
+    /**
+     * If the active branch's own messages exceed [MAX_SAVED_MESSAGES], drop
+     * the oldest ones. The inherited prefix is always preserved.
+     */
+    private fun capActiveBranch() {
+        val msgs = tree.activeBranch.messages
+        if (msgs.size > MAX_SAVED_MESSAGES) {
+            val toDrop = msgs.size - MAX_SAVED_MESSAGES
+            repeat(toDrop) { msgs.removeAt(0) }
+        }
+    }
+
+    /**
+     * Mirror [tree.visibleMessages] into the [messages] list and refresh
+     * the adapter. Call this after any change to the tree.
+     */
+    private fun syncMessagesFromTree() {
+        messages.clear()
+        for (m in tree.visibleMessages()) {
+            messages.add(ChatMessage(m.role, m.content))
+        }
+        adapter.notifyDataSetChanged()
+        updateChatVisibility()
+        if (messages.isNotEmpty()) scrollToBottom()
+    }
+
+    /**
+     * Update the chip in the header to show the active branch's name. The
+     * 🌿 icon hints at the branching metaphor.
+     */
+    private fun updateBranchChip() {
+        val total = tree.allBranches.size
+        val name = tree.activeBranch.name
+        binding.branchChip.text = if (total > 1) "🌿 $name ($total)" else "🌿 $name"
+    }
+
+    /**
+     * Show a bottom sheet–style dialog with all branches, the current one
+     * marked. Tapping a non-active branch switches to it; long-press gives
+     * a delete/rename option for non-root branches.
+     */
+    private fun showBranchPicker() {
+        val branches = tree.allBranches
+        val labels = branches.map { b ->
+            val marker = if (b.id == tree.activeBranchId) "● " else "  "
+            val markerCount = b.messages.size
+            val parent = if (b.parentId != null) " ⤴" else ""
+            "$marker${b.name} · $markerCount 条$parent"
+        }
+        AlertDialog.Builder(this)
+            .setTitle("选择分支")
+            .setItems(labels.toTypedArray()) { _, which ->
+                val target = branches[which]
+                if (target.id != tree.activeBranchId) {
+                    tree.switchTo(target.id)
+                    syncMessagesFromTree()
+                    updateBranchChip()
+                    storage.save(tree)
+                    Toast.makeText(this, "切换到 ${target.name}", Toast.LENGTH_SHORT).show()
+                }
             }
-            adapter.notifyDataSetChanged()
-            updateChatVisibility()
-            if (messages.isNotEmpty()) scrollToBottom()
-        } catch (_: Exception) {}
+            .setNegativeButton("关闭", null)
+            .show()
+    }
+
+    /**
+     * Long-press a message → offer "Fork from here". The new branch
+     * inherits every message up to and including the tapped index.
+     */
+    private fun showMessageContextMenu(position: Int) {
+        val items = arrayOf("🌿 从这里重开", "📋 复制")
+        AlertDialog.Builder(this)
+            .setTitle("消息操作")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> forkAt(position)
+                    1 -> { /* copy is handled by adapter default */ }
+                }
+            }
+            .show()
+    }
+
+    /**
+     * Create a new branch starting at [position] (inclusive) of the
+     * effective message list and switch to it. Returns the new branch.
+     */
+    private fun forkAt(position: Int): ConversationBranch {
+        val newBranch = tree.forkAt(position + 1) // +1 to include this message
+        syncMessagesFromTree()
+        updateBranchChip()
+        storage.save(tree)
+        Toast.makeText(this, "已开新分支:${newBranch.name}", Toast.LENGTH_SHORT).show()
+        return newBranch
     }
 
     @Suppress("UNUSED")
