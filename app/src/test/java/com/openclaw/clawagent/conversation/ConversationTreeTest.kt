@@ -39,13 +39,17 @@ class ConversationTreeTest {
         tree.appendMessage("assistant", "B")
         tree.appendMessage("user", "C")
         tree.appendMessage("assistant", "D")
-        // Fork at index 2 — new branch inherits [A, B].
+        // Fork at index 2 — new branch inherits [A, B] from the parent.
+        // The inherited messages are *not* copied into the new branch's
+        // own list; visibleMessages() computes the effective list by
+        // walking the parent chain.
         val newBranch = tree.forkAt(messageIndex = 2)
         assertNotNull(newBranch)
         assertEquals(newBranch.id, tree.activeBranchId)
-        assertEquals("A", tree.activeBranch.messages.firstOrNull()?.content)
-        // New branch's own messages start empty; visible shows inherited
-        // prefix from main followed by own empty list.
+        // The new branch's own message list is empty — inheritance is
+        // virtual, not copied.
+        assertTrue(tree.activeBranch.messages.isEmpty())
+        assertEquals(2, newBranch.forkAtMessageIndex)
         val visible = tree.visibleMessages()
         assertEquals(2, visible.size)
         assertEquals("A", visible[0].content)
@@ -101,7 +105,14 @@ class ConversationTreeTest {
         tree.deleteBranch(b1.id)
         // b2 should now have root as parent.
         val reparented = tree.allBranches.first { it.id == b2.id }
-        assertNull(reparented.parentId)
+        val rootId = tree.allBranches.first { it.parentId == null }.id
+        assertEquals(rootId, reparented.parentId)
+        // And the effective view should still contain the shared root
+        // message, since b2's new fork point is b1's fork point (1) plus
+        // b2's own (1) = 2 of root's effective.
+        val visible = tree.visibleMessages()
+        assertEquals(1, visible.size)
+        assertEquals("u1", visible[0].content)
     }
 
     @Test
