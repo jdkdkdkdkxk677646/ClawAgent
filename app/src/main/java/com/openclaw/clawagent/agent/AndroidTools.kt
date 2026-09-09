@@ -60,59 +60,70 @@ class DeviceInfoTool(private val context: Context) : AgentTool {
         append("语言:${java.util.Locale.getDefault().toLanguageTag()}")
     }.trim()
 
-    private fun battery(): String? = try {
-        val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
-            ?: return null
-        val pct = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-        if (pct <= 0) null else {
-            val charging = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_STATUS) ==
-                BatteryManager.BATTERY_STATUS_CHARGING
-            "电量:$pct%${if (charging) "(充电中)" else ""}"
+    private fun battery(): String? {
+        return try {
+            val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+                ?: return null
+            val pct = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            if (pct <= 0) null else {
+                val charging = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_STATUS) ==
+                    BatteryManager.BATTERY_STATUS_CHARGING
+                "电量:$pct%${if (charging) "(充电中)" else ""}"
+            }
+        } catch (_: Exception) {
+            null
         }
-    } catch (_: Exception) {
-        null
     }
 
-    private fun memory(): String? = try {
-        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return null
-        val mi = ActivityManager.MemoryInfo()
-        am.getMemoryInfo(mi)
-        "内存:可用 ${formatBytes(mi.availMem)} / 共 ${formatBytes(mi.totalMem)}" +
-            if (mi.lowMemory) "(系统提示内存不足)" else ""
-    } catch (_: Exception) {
-        null
-    }
-
-    private fun storage(): String? = try {
-        val stat = StatFs(context.filesDir.path)
-        val avail = stat.availableBytes
-        val total = stat.totalBytes
-        "应用存储:可用 ${formatBytes(avail)} / 共 ${formatBytes(total)}"
-    } catch (_: Exception) {
-        null
-    }
-
-    private fun network(): String? = try {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE)
-            as? android.net.ConnectivityManager ?: return null
-        val network = cm.activeNetwork ?: return "网络:当前无活动连接"
-        val caps = cm.getNetworkCapabilities(network) ?: return "网络:当前无活动连接"
-        val kind = when {
-            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
-            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) -> "蜂窝数据"
-            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) -> "以太网"
-            else -> "其他"
+    private fun memory(): String? {
+        return try {
+            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+                ?: return null
+            val mi = ActivityManager.MemoryInfo()
+            am.getMemoryInfo(mi)
+            "内存:可用 ${formatBytes(mi.availMem)} / 共 ${formatBytes(mi.totalMem)}" +
+                if (mi.lowMemory) "(系统提示内存不足)" else ""
+        } catch (_: Exception) {
+            null
         }
-        "网络:$kind(${caps.linkDownstreamBandwidthKbps} Kbps 下行)"
-    } catch (_: Exception) {
-        null
     }
 
-    private fun screen(): String? = try {
-        val metrics = context.resources.displayMetrics
-        "屏幕:${metrics.widthPixels}×${metrics.heightPixels} px,密度 ${metrics.densityDpi} dpi"
-    } catch (_: Exception) {
-        null
+    private fun storage(): String? {
+        return try {
+            val stat = StatFs(context.filesDir.path)
+            val avail = stat.availableBytes
+            val total = stat.totalBytes
+            "应用存储:可用 ${formatBytes(avail)} / 共 ${formatBytes(total)}"
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun network(): String? {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE)
+                as? android.net.ConnectivityManager ?: return null
+            val network = cm.activeNetwork ?: return "网络:当前无活动连接"
+            val caps = cm.getNetworkCapabilities(network) ?: return "网络:当前无活动连接"
+            val kind = when {
+                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
+                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) -> "蜂窝数据"
+                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) -> "以太网"
+                else -> "其他"
+            }
+            "网络:$kind(${caps.linkDownstreamBandwidthKbps} Kbps 下行)"
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun screen(): String? {
+        return try {
+            val metrics = context.resources.displayMetrics
+            "屏幕:${metrics.widthPixels}×${metrics.heightPixels} px,密度 ${metrics.densityDpi} dpi"
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun formatBytes(bytes: Long): String = when {
