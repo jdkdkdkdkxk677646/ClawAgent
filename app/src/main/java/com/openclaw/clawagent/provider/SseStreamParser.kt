@@ -1,7 +1,7 @@
 package com.openclaw.clawagent.provider
 
-import okio.Buffer
 import okio.BufferedSource
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
@@ -16,12 +16,21 @@ import org.json.JSONObject
  *
  * The wire format we parse:
  *   data: {"choices":[{"delta":{"content":"hi"}}]}
+ *   data: {"choices":[{"delta":{"tool_calls":[...]}}]}   // agent tool calls
  *   data: [DONE]
  *
  * Non-`data:` lines (event ids, comments, heartbeats) are ignored, which is
  * fine for OpenAI-compatible APIs.
  */
 class SseStreamParser {
+
+    /** One parsed stream frame: text content, tool-call fragments, or both. */
+    class Frame(
+        /** Text delta; empty string when the frame carried none. */
+        val contentDelta: String,
+        /** Raw `delta.tool_calls` fragments, or null when absent. */
+        val toolCallFragments: JSONArray?,
+    )
 
     /**
      * Pull the next complete data payload out of [source], or return null if
@@ -49,30 +58,48 @@ class SseStreamParser {
     }
 
     /**
-     * Convenience: pull a payload and parse the `choices[0].delta.content` delta.
-     * Returns the delta string, or null if the stream ended or this frame
-     * carried no content.
+     * Pull the next frame and split it into a content delta plus optional
+     * tool-call fragments. Returns null when the stream ended ([DONE] or EOF).
+     * Frames without any choices payload yield an empty content delta, so
+     * callers can keep pulling.
      */
-    fun nextContentDelta(source: BufferedSource): String? {
+    fun nextFrame(source: BufferedSource): Frame? {
         while (true) {
             val payload = nextDataPayload(source) ?: return null
             if (payload == "[DONE]") return null
 
-            val delta = try {
+            try {
                 val json = JSONObject(payload)
-                val choices = json.optJSONArray("choices") ?: return ""
-                if (choices.length() == 0) return ""
+                val choices = json.optJSONArray("choices") ?: return Frame("", null)
+                if (choices.length() == 0) return Frame("", null)
+
                 val first = choices.getJSONObject(0)
-                first.optJSONObject("delta")?.optString("content", "")
-                    ?: first.optJSONObject("message")?.optString("content", "")
-                    ?: ""
+                // Streaming frames carry `delta`; some providers send a full
+                // `message` object instead — accept both.
+                val delta = first.optJSONObject("delta")
+                    ?: first.optJSONObject("message")
+
+                if (delta == null) return Frame("", null)
+
+                val content = if (delta.has("content")) {
+                    delta.optString("content", "")
+                } else {
+                    ""
+                }
+                val toolCalls = delta.optJSONArray("tool_calls")
+                return Frame(content, toolCalls)
             } catch (e: JSONException) {
                 // Malformed frame — skip and try the next one. The OpenAI
                 // protocol rarely sends broken JSON, so this is just a safety
                 // net for edge cases like proxies that prepend bytes.
                 continue
             }
-            return delta
         }
     }
+
+    /**
+     * Convenience: pull a frame and return only its text delta.
+     * Returns the delta string, or null if the stream ended.
+     */
+    fun nextContentDelta(source: BufferedSource): String? = nextFrame(source)?.contentDelta
 }

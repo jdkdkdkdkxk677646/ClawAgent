@@ -71,6 +71,23 @@ class SecurePrefs(context: Context) {
         get() = plain.getInt(KEY_CONTEXT_LIMIT, DEFAULT_CONTEXT_LIMIT)
         set(value) = plain.edit().putInt(KEY_CONTEXT_LIMIT, value).apply()
 
+    /**
+     * System prompt prepended to every request — the agent's persona and
+     * ground rules. Empty means "no system message" (provider default).
+     */
+    var systemPrompt: String
+        get() = plain.getString(KEY_SYSTEM_PROMPT, "") ?: ""
+        set(value) = plain.edit().putString(KEY_SYSTEM_PROMPT, value).apply()
+
+    /**
+     * Whether the model may call built-in tools (calculator, clock) via
+     * OpenAI-compatible function calling. Off by default: older or smaller
+     * models / providers may not support `tools` and would error out.
+     */
+    var agentMode: Boolean
+        get() = plain.getBoolean(KEY_AGENT_MODE, false)
+        set(value) = plain.edit().putBoolean(KEY_AGENT_MODE, value).apply()
+
     // ----- API key (encrypted, when available) -----
 
     /** Returns the persisted API key, or "" if unset or encrypted storage failed. */
@@ -113,6 +130,8 @@ class SecurePrefs(context: Context) {
         private const val KEY_KEEP_CONTEXT = "keep_context"
         private const val KEY_STREAM = "stream"
         private const val KEY_CONTEXT_LIMIT = "context_limit"
+        private const val KEY_SYSTEM_PROMPT = "system_prompt"
+        private const val KEY_AGENT_MODE = "agent_mode"
 
         const val DEFAULT_CONTEXT_LIMIT = 20
 

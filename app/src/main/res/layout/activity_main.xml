@@ -34,11 +34,11 @@
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:background="@drawable/btn_bg"
+            android:src="@drawable/ic_new_chat"
             android:tint="#94a3b8"
             android:backgroundTint="#22263a"
             android:contentDescription="新对话"
-            android:layout_marginEnd="4dp"
-            android:text="+" />
+            android:layout_marginEnd="4dp" />
 
         <ImageButton
             android:id="@+id/settingsBtn"

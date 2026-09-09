@@ -4,6 +4,8 @@
 
 ## 功能
 
+- 🦾 **Agent 工具调用**（v1.2.0 新增）：开启后模型可自动调用内置工具——**计算器**（精确四则/幂运算）与**实时时钟**（回答"现在几点"不再靠猜），并支持多轮连续调用，调用过程实时显示
+- 🎭 **系统提示词**（v1.2.0 新增）：为 Agent 自定义人设与行为规则，每次请求自动携带
 - 💬 多轮对话，上下文记忆（条数可在设置中限制，防止 token 消耗无限增长）
 - 🌊 流式输出，打字机效果，**随时点停止**中断生成
 - 📋 长按气泡复制消息原文
@@ -52,6 +54,8 @@ APK 输出路径：`app/build/outputs/apk/debug/app-debug.apk`
 | 保留上下文 | 关掉则每次只发当前这条消息 |
 | 上下文长度 | 随请求发送的最近历史条数（默认 20 条，可设 10 / 20 / 50 / 不限制） |
 | 流式输出 | 逐字返回；关闭则整段返回 |
+| 系统提示词 | 每次请求自动附加的 system 消息，用于设定 Agent 人设与规则 |
+| Agent 工具调用 | 允许模型调用内置工具（计算器 / 实时时钟），最多连续 5 轮；需所选模型支持 Function Calling |
 
 ## 安全性说明
 
@@ -63,12 +67,13 @@ APK 输出路径：`app/build/outputs/apk/debug/app-debug.apk`
 - Kotlin + Android SDK 34（minSdk 26）
 - OkHttp 4 + 自研 SSE 流解析器（跨 chunk 边界安全）
 - Material 3 + ViewBinding
-- JUnit 单元测试（SSE 解析 / Markdown 解析）+ GitHub Actions CI
+- JUnit 单元测试（SSE 解析 / Markdown 解析 / 工具调用累积 / 计算器）+ GitHub Actions CI
 
 ## Roadmap
 
 - [ ] 多会话管理（历史列表 / 删除 / 导出）
-- [ ] 系统提示词（System Prompt）自定义
+- [x] 系统提示词（System Prompt）自定义（v1.2.0）
+- [x] Agent 工具调用（计算器 / 时钟，Function Calling，v1.2.0）
 - [ ] 图片输入支持
 - [ ] 签名 Release 构建 + tag 自动发 Release
 

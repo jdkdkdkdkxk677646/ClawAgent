@@ -214,5 +214,68 @@
                 android:textColor="#e2e8f0" />
         </LinearLayout>
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🧩 系统提示词"
+            android:textColor="#64748b"
+            android:textSize="12sp"
+            android:textAllCaps="true"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="给 Agent 设定人设与规则,如:你是一个严谨的助手,回答保持简洁"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/systemPromptEdit"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:inputType="textMultiLine|textCapSentences"
+                android:minLines="2"
+                android:maxLines="6"
+                android:gravity="top" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="12dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Agent 工具调用"
+                    android:textColor="#e2e8f0"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="允许模型调用计算器/时钟等工具(需模型支持 Function Calling)"
+                    android:textColor="#64748b"
+                    android:textSize="11sp"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+
+            <CheckBox
+                android:id="@+id/agentCheckbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="false"
+                android:textColor="#e2e8f0" />
+        </LinearLayout>
+
     </LinearLayout>
 </ScrollView>

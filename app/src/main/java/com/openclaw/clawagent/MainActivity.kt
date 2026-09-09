@@ -13,6 +13,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.openclaw.clawagent.agent.AgentTools
 import com.openclaw.clawagent.databinding.ActivityMainBinding
 import com.openclaw.clawagent.databinding.DialogSettingsBinding
 import com.openclaw.clawagent.provider.ChatService
@@ -20,8 +21,10 @@ import com.openclaw.clawagent.provider.Provider
 import com.openclaw.clawagent.provider.ProviderCatalog
 import com.openclaw.clawagent.provider.SecurePrefs
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
@@ -133,34 +136,7 @@ class MainActivity : AppCompatActivity() {
 
                 val history = buildRequestHistory(text)
 
-                chatService.streamChat(
-                    endpoint = prefs.endpoint,
-                    apiKey = apiKey,
-                    model = model,
-                    history = history,
-                    stream = prefs.streamOutput,
-                ).collect { event ->
-                    when (event) {
-                        is ChatService.StreamEvent.Delta -> {
-                            assistantMsg.content += event.text
-                            adapter.notifyItemChanged(assistantIndex)
-                            scrollToBottom()
-                        }
-                        is ChatService.StreamEvent.Error -> {
-                            // Keep whatever already streamed in — replacing it
-                            // would throw away paid tokens the user just paid for.
-                            assistantMsg.content = if (assistantMsg.content.isEmpty()) {
-                                "⚠️ ${event.message}"
-                            } else {
-                                "${assistantMsg.content}\n\n⚠️ ${event.message}"
-                            }
-                            adapter.notifyItemChanged(assistantIndex)
-                        }
-                        ChatService.StreamEvent.Done -> {
-                            scrollToBottom()
-                        }
-                    }
-                }
+                runAgentTurn(history, assistantMsg, assistantIndex, apiKey, model)
             } catch (e: CancellationException) {
                 // User hit stop. Keep the partial reply; mark it if empty.
                 assistantMsg.content = if (assistantMsg.content.isBlank()) {
@@ -191,13 +167,125 @@ class MainActivity : AppCompatActivity() {
      * Context fed to the API: everything (minus the placeholder) when context
      * memory is on, truncated to [SecurePrefs.contextLimit] entries so token
      * cost and request latency stay bounded on long conversations; just the
-     * latest user turn when context memory is off.
+     * latest user turn when context memory is off. A configured system prompt
+     * (the agent's persona) always leads the request, regardless of limits.
      */
     private fun buildRequestHistory(text: String): List<ChatService.Message> {
-        if (!prefs.keepContext) return listOf(ChatService.Message("user", text))
+        val systemMessages = prefs.systemPrompt.trim().takeIf { it.isNotEmpty() }
+            ?.let { listOf(ChatService.Message("system", it)) }
+            ?: emptyList()
+        if (!prefs.keepContext) {
+            return systemMessages + listOf(ChatService.Message("user", text))
+        }
         val base = messages.dropLast(1).map { ChatService.Message(it.role, it.content) }
         val limit = prefs.contextLimit
-        return if (limit > 0) base.takeLast(limit) else base
+        val limited = if (limit > 0) base.takeLast(limit) else base
+        return systemMessages + limited
+    }
+
+    /**
+     * The agent loop: stream a model reply; if the model requests tool calls
+     * (OpenAI function calling), execute them locally, feed the results back
+     * as `role:"tool"` messages and continue — up to [MAX_TOOL_ROUNDS] model
+     * rounds per user turn. The chat bubble shows every tool invocation and
+     * its result inline, then the model's final answer streams below it.
+     */
+    private suspend fun runAgentTurn(
+        initialHistory: List<ChatService.Message>,
+        assistantMsg: ChatMessage,
+        assistantIndex: Int,
+        apiKey: String,
+        model: String,
+    ) {
+        val conversation = initialHistory.toMutableList()
+        val toolsJson = if (prefs.agentMode) AgentTools.requestJson() else null
+
+        var round = 0
+        while (true) {
+            round++
+            var roundContent = ""   // raw model text produced this round
+            var requestedCalls: List<ChatService.ToolCall>? = null
+            var failed = false
+
+            chatService.streamChat(
+                endpoint = prefs.endpoint,
+                apiKey = apiKey,
+                model = model,
+                history = conversation,
+                stream = prefs.streamOutput,
+                tools = toolsJson,
+            ).collect { event ->
+                when (event) {
+                    is ChatService.StreamEvent.Delta -> {
+                        roundContent += event.text
+                        assistantMsg.content += event.text
+                        adapter.notifyItemChanged(assistantIndex)
+                        scrollToBottom()
+                    }
+                    is ChatService.StreamEvent.ToolCalls -> {
+                        requestedCalls = event.calls
+                        // Transparent tool trace in the bubble.
+                        if (assistantMsg.content.isNotEmpty() &&
+                            !assistantMsg.content.endsWith("\n")
+                        ) {
+                            assistantMsg.content += "\n\n"
+                        }
+                        event.calls.forEach { call ->
+                            assistantMsg.content += "🔧 ${call.name}(${call.arguments})\n"
+                        }
+                        adapter.notifyItemChanged(assistantIndex)
+                        scrollToBottom()
+                    }
+                    is ChatService.StreamEvent.Error -> {
+                        failed = true
+                        // Keep whatever already streamed in — replacing it
+                        // would throw away paid tokens the user just paid for.
+                        assistantMsg.content = if (assistantMsg.content.isEmpty()) {
+                            "⚠️ ${event.message}"
+                        } else {
+                            "${assistantMsg.content}\n\n⚠️ ${event.message}"
+                        }
+                        adapter.notifyItemChanged(assistantIndex)
+                    }
+                    ChatService.StreamEvent.Done -> {
+                        scrollToBottom()
+                    }
+                }
+            }
+
+            if (failed) return
+            val calls = requestedCalls
+            if (calls.isNullOrEmpty()) return   // final answer complete
+
+            if (round >= MAX_TOOL_ROUNDS) {
+                assistantMsg.content += "\n\n⚠️ 已连续调用工具 $round 轮,为避免死循环已停止。"
+                adapter.notifyItemChanged(assistantIndex)
+                return
+            }
+
+            // Record the tool-call request, then execute each tool locally.
+            conversation += ChatService.Message(
+                role = "assistant",
+                content = roundContent,
+                toolCalls = calls,
+            )
+            for (call in calls) {
+                val result = withContext(Dispatchers.Default) {
+                    runCatching { AgentTools.execute(call.name, call.arguments) }
+                        .getOrElse { "工具执行失败:${it.message}" }
+                }
+                assistantMsg.content += "↳ $result\n"
+                adapter.notifyItemChanged(assistantIndex)
+                scrollToBottom()
+                conversation += ChatService.Message(
+                    role = "tool",
+                    content = result,
+                    toolCallId = call.id,
+                    toolName = call.name,
+                )
+            }
+            assistantMsg.content += "\n"
+        }
     }
 
     private fun updateSendButton() {
@@ -301,6 +389,8 @@ class MainActivity : AppCompatActivity() {
         dialogBinding.apiKeyEdit.setText(prefs.getApiKey())
         dialogBinding.contextCheckbox.isChecked = prefs.keepContext
         dialogBinding.streamCheckbox.isChecked = prefs.streamOutput
+        dialogBinding.systemPromptEdit.setText(prefs.systemPrompt)
+        dialogBinding.agentCheckbox.isChecked = prefs.agentMode
 
         AlertDialog.Builder(this)
             .setTitle("⚙️ 设置")
@@ -318,6 +408,8 @@ class MainActivity : AppCompatActivity() {
                 prefs.streamOutput = dialogBinding.streamCheckbox.isChecked
                 prefs.contextLimit = contextLabels[dialogBinding.contextLimitDropdown.text.toString()]
                     ?: 20
+                prefs.systemPrompt = dialogBinding.systemPromptEdit.text.toString().trim()
+                prefs.agentMode = dialogBinding.agentCheckbox.isChecked
                 Toast.makeText(this, "已保存:${picked.displayName}", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("取消", null)
@@ -385,5 +477,8 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val MAX_SAVED_MESSAGES = 300
+
+        /** Cap on model rounds per user turn in agent mode (tool-call loop). */
+        private const val MAX_TOOL_ROUNDS = 5
     }
 }
