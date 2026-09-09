@@ -8,8 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      ANDROID_HOME: ${{ github.workspace }}/Android/Sdk
     steps:
       - uses: actions/checkout@v4
 
@@ -19,24 +17,16 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Setup Android SDK
+        uses: Swisyn/setup-android-sdk@v1
         with:
-          gradle-version: '8.0'
+          packages: 'platforms;android-34 build-tools;34.0.0'
 
-      - name: Install Android SDK
-        run: |
-          mkdir -p $ANDROID_HOME/cmdline-tools/latest
-          cd /tmp
-          curl -fL -o cmdtools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip -q cmdtools.zip
-          rm cmdtools.zip
-          cp -r /tmp/cmdline-tools/* $ANDROID_HOME/cmdline-tools/latest/
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
       - name: Build Debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         if: success()
