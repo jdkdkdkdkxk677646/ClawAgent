@@ -103,16 +103,18 @@ class ConversationTreeTest {
         tree.appendMessage("user", "b2-only")
         // b2's parent is b1, b1's parent is root. Delete b1.
         tree.deleteBranch(b1.id)
-        // b2 should now have root as parent.
+        // b2 should now have root as parent, with forkAtMessageIndex
+        // adjusted to b1's (1) + b2's (1) = 2.
         val reparented = tree.allBranches.first { it.id == b2.id }
         val rootId = tree.allBranches.first { it.parentId == null }.id
         assertEquals(rootId, reparented.parentId)
-        // And the effective view should still contain the shared root
-        // message, since b2's new fork point is b1's fork point (1) plus
-        // b2's own (1) = 2 of root's effective.
+        assertEquals(2, reparented.forkAtMessageIndex)
+        // Effective view: root's [u1] (only one message, take 2 yields
+        // same) + b2's own [b2-only] = 2 messages.
         val visible = tree.visibleMessages()
-        assertEquals(1, visible.size)
+        assertEquals(2, visible.size)
         assertEquals("u1", visible[0].content)
+        assertEquals("b2-only", visible[1].content)
     }
 
     @Test
