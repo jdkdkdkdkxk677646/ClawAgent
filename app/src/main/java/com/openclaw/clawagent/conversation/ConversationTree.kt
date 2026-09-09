@@ -37,23 +37,39 @@ class ConversationTree {
      * Effective message list for the active branch: the inherited prefix
      * (parent chain up to the fork point) followed by this branch's own
      * messages. Read-only view.
+     *
+     * Definition (recursive):
+     *   effective(root)   = root.own messages
+     *   effective(child)  = effective(parent).take(child.forkAtMessageIndex)
+     *                       + child.own messages
+     *
+     * Iterative form: compute the root's effective list, then walk down
+     * the parent chain toward the active branch, slicing at each fork
+     * point and appending each branch's own messages.
      */
     fun visibleMessages(): List<BranchMessage> {
-        val chain = collectAncestorChain(activeBranchId)
-        if (chain.isEmpty()) return activeBranch.messages.toList()
-        // First entry is the root branch; later entries are successively
-        // closer ancestors. The last entry is the active branch itself,
-        // contributing zero of its own messages to the inherited prefix
-        // (we only inherit `forkAtMessageIndex` of the *parent* of the
-        // active branch; the active branch's own messages are appended at
-        // the end).
-        val out = ArrayList<BranchMessage>()
-        for ((branch, count) in chain) {
-            val n = count.coerceAtMost(branch.messages.size)
-            for (i in 0 until n) out.add(branch.messages[i])
+        // Build the chain from root → active by repeatedly following
+        // parentId. If the chain is broken (a parent's id is missing),
+        // we just stop early — the data is still useful.
+        val chainToActive = ArrayList<ConversationBranch>()
+        val root = branches.values.firstOrNull { it.parentId == null } ?: return emptyList()
+        chainToActive.add(root)
+        var cursor: ConversationBranch = root
+        while (cursor.id != activeBranchId) {
+            val next = branches.values.firstOrNull { it.parentId == cursor.id }
+                ?: break
+            chainToActive.add(next)
+            cursor = next
         }
-        out.addAll(activeBranch.messages)
-        return out
+
+        // Roll up the effective list, slicing at each fork point.
+        var effective = root.messages.toList()
+        for (i in 1 until chainToActive.size) {
+            val branch = chainToActive[i]
+            effective = effective.take(branch.forkAtMessageIndex)
+            effective = effective + branch.messages
+        }
+        return effective
     }
 
     /** Append a message to the active branch. */
@@ -137,26 +153,21 @@ class ConversationTree {
 
     /**
      * Walks from [startId] up to the root, returning the chain as a list
-     * of (branch, howManyOfBranchCountTowardInheritedPrefix) pairs. The
-     * last entry is always the active branch with a contribution of 0
-     * (its own messages are appended at the end, not inherited from).
+     * of (branch, howManyOfBranchCountTowardInheritedPrefix) pairs.
+     *
+     * Kept around for potential reuse; not used by [visibleMessages]
+     * anymore (which uses a simpler iterative walk).
      */
+    @Suppress("unused")
     private fun collectAncestorChain(startId: String): List<Pair<ConversationBranch, Int>> {
         val chain = ArrayList<Pair<ConversationBranch, Int>>()
         var current: ConversationBranch? = branches[startId] ?: return chain
-        // The active branch itself contributes 0 to the inherited prefix.
         chain.add(current!! to 0)
         while (current?.parentId != null) {
             val parent = branches[current!!.parentId] ?: break
-            // The parent contributes `parent.forkAtMessageIndex` to the
-            // active branch's inherited prefix (i.e. the parent's own
-            // fork point, because that ancestor is itself a child of an
-            // older branch).
             chain.add(0, parent to parent.forkAtMessageIndex)
             current = parent
         }
-        // The oldest ancestor (root) contributes its full message count
-        // because there's nothing older to fork from.
         if (chain.isNotEmpty()) {
             val (rootBranch, _) = chain.first()
             chain[0] = rootBranch to rootBranch.messages.size
@@ -164,9 +175,6 @@ class ConversationTree {
         return chain
     }
 
-    private fun defaultBranchName(): String {
-        var n = branches.size + 1
-        while (branches.values.any { it.name == "Branch $n" }) n++
         return "Branch $n"
     }
 
