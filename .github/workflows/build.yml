@@ -16,7 +16,6 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: gradle
 
       - name: Install Android SDK
         run: |
@@ -28,19 +27,15 @@ jobs:
           unzip -q ct.zip
           rm ct.zip
           cp -r /tmp/cmdline-tools/* $SDK_DIR/cmdline-tools/latest/
-          yes | $SDK_DIR/cmdline-tools/latest/bin/sdkmanager --licenses --sdk_root=$SDK_DIR 2>&1 | tail -3
-          $SDK_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$SDK_DIR "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -5
+          yes | $SDK_DIR/cmdline-tools/latest/bin/sdkmanager --licenses --sdk_root=$SDK_DIR
+          $SDK_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$SDK_DIR "platform-tools" "platforms;android-34" "build-tools;34.0.0"
           echo "sdk.dir=$SDK_DIR" > local.properties
-          echo "=== SDK installed ==="
-          ls $SDK_DIR/platforms/
-          ls $SDK_DIR/build-tools/
-          java -version
 
-      - name: Build Debug APK with full logging
+      - name: Build Debug APK
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build.log
-          echo "EXIT_CODE=$?"
+          echo "EXIT=\$?"
 
       - name: Upload build log
         if: always()
