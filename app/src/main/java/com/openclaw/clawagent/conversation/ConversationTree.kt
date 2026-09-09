@@ -145,7 +145,7 @@ class ConversationTree {
         val chain = ArrayList<Pair<ConversationBranch, Int>>()
         var current: ConversationBranch? = branches[startId] ?: return chain
         // The active branch itself contributes 0 to the inherited prefix.
-        chain.add(current to 0)
+        chain.add(current!! to 0)
         while (current?.parentId != null) {
             val parent = branches[current!!.parentId] ?: break
             // The parent contributes `parent.forkAtMessageIndex` to the

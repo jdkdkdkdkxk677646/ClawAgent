@@ -15,6 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.openclaw.clawagent.agent.AgentTools
 import com.openclaw.clawagent.conversation.BranchMessage
+import com.openclaw.clawagent.conversation.ConversationBranch
 import com.openclaw.clawagent.conversation.ConversationStorage
 import com.openclaw.clawagent.conversation.ConversationTree
 import com.openclaw.clawagent.databinding.ActivityMainBinding
