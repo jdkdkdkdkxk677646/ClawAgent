@@ -45,7 +45,7 @@ jobs:
           java -version
 
       - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+        run: gradle testDebugUnitTest --no-daemon --stacktrace
 
       - name: Upload Unit Test Report
         if: always()
@@ -56,7 +56,7 @@ jobs:
           retention-days: 7
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build.log
+        run: gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build.log
 
       - name: Upload build log
         if: always()
