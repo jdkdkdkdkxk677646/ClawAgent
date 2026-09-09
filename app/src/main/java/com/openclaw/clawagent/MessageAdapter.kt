@@ -1,18 +1,48 @@
 package com.openclaw.clawagent
 
-import android.text.Html
-import android.text.Spanned
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.style.BackgroundColorSpan
+import android.text.style.ForegroundColorSpan
+import android.text.style.LineBackgroundSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
+import android.text.style.TypefaceSpan
+import android.text.util.Linkify
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.openclaw.clawagent.databinding.ItemMessageBinding
+import com.openclaw.clawagent.markdown.MarkdownParser
+import com.openclaw.clawagent.markdown.Segment
 
 data class ChatMessage(val role: String, var content: String)
 
-class MessageAdapter(private val messages: List<ChatMessage>) :
-    RecyclerView.Adapter<MessageAdapter.VH>() {
+/**
+ * Renders chat bubbles. Assistant content is parsed by [MarkdownParser] and
+ * rendered with spans — the previous Html.fromHtml approach silently dropped
+ * all `style=` attributes, so code blocks rendered as plain prose.
+ *
+ * The raw (unrendered) text is emitted through [onCopy] on long-press so the
+ * clipboard gets exactly what the model wrote.
+ */
+class MessageAdapter(
+    private val messages: List<ChatMessage>,
+    private val onCopy: (String) -> Unit = {},
+) : RecyclerView.Adapter<MessageAdapter.VH>() {
 
-    inner class VH(val binding: ItemMessageBinding) : RecyclerView.ViewHolder(binding.root)
+    inner class VH(val binding: ItemMessageBinding) : RecyclerView.ViewHolder(binding.root) {
+        init {
+            binding.messageText.setOnLongClickListener {
+                val pos = adapterPosition
+                if (pos != RecyclerView.NO_POSITION) onCopy(messages[pos].content)
+                true
+            }
+        }
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val binding = ItemMessageBinding.inflate(
@@ -27,9 +57,6 @@ class MessageAdapter(private val messages: List<ChatMessage>) :
 
         binding.avatar.text = if (msg.role == "user") "👤" else "🦀"
 
-        // Simple markdown rendering
-        val rendered = renderMarkdown(msg.content)
-
         if (msg.role == "user") {
             binding.messageText.background = holder.itemView.context
                 .getDrawable(R.drawable.msg_user_bg)
@@ -40,38 +67,75 @@ class MessageAdapter(private val messages: List<ChatMessage>) :
             binding.messageText.setTextColor(0xFFE2E8F0.toInt())
         }
 
-        binding.messageText.text = rendered
+        binding.messageText.text = renderContent(msg)
     }
 
     override fun getItemCount() = messages.size
 
-    private fun renderMarkdown(text: String): Spanned {
-        var html = text
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
+    // ----- rendering -------------------------------------------------------
 
-        // Code blocks
-        html = html.replace(Regex("```(\\w*)\\n([\\s\\S]*?)```")) {
-            "<font color='#a78bfa'><b>${it.groupValues[1]}</b></font><br>" +
-            "<pre style='background:#111827;padding:8px;border-radius:6px;font-size:11px;overflow-x:auto;'>" +
-            "${it.groupValues[2]}</pre>"
+    private fun renderContent(msg: ChatMessage): CharSequence {
+        // User messages render verbatim — no markdown surprises for your own
+        // words. Assistant messages get the full treatment.
+        if (msg.role == "user") return msg.content
+
+        val sb = SpannableStringBuilder()
+        MarkdownParser.parse(msg.content).forEach { seg ->
+            when (seg) {
+                is Segment.Text -> sb.append(seg.text)
+
+                is Segment.Bold -> {
+                    val start = sb.length
+                    sb.append(seg.text)
+                    sb.setSpan(StyleSpan(Typeface.BOLD), start, sb.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+
+                is Segment.InlineCode -> {
+                    val start = sb.length
+                    sb.append(seg.text)
+                    sb.setSpan(TypefaceSpan("monospace"), start, sb.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    sb.setSpan(ForegroundColorSpan(0xFFFBBF24.toInt()), start, sb.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    sb.setSpan(BackgroundColorSpan(0xFF1E293B.toInt()), start, sb.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+
+                is Segment.CodeBlock -> {
+                    if (seg.lang.isNotEmpty()) {
+                        val ls = sb.length
+                        sb.append(seg.lang)
+                        sb.append('\n')
+                        sb.setSpan(ForegroundColorSpan(0xFF64748B.toInt()), ls, sb.length - 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        sb.setSpan(StyleSpan(Typeface.ITALIC), ls, sb.length - 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        sb.setSpan(RelativeSizeSpan(0.85f), ls, sb.length - 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                    val start = sb.length
+                    sb.append(seg.code)
+                    if (seg.code.isNotEmpty() && !seg.code.endsWith("\n")) sb.append('\n')
+                    sb.setSpan(TypefaceSpan("monospace"), start, sb.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    sb.setSpan(CodeBackgroundSpan(), start, sb.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    sb.setSpan(ForegroundColorSpan(0xFFD6E2F0.toInt()), start, sb.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
         }
 
-        // Inline code
-        html = html.replace(Regex("`([^`]+)`")) {
-            "<font color='#fbbf24'><code style='background:#111827;padding:1px 4px;border-radius:3px;'>" +
-            "${it.groupValues[1]}</code></font>"
+        // Make plain URLs tappable. Works on the spannable we just built.
+        Linkify.addLinks(sb, Linkify.WEB_URLS)
+        return sb
+    }
+
+    /**
+     * Paints a soft panel behind every line of a code block. LineBackgroundSpan
+     * is invoked per line, and consecutive lines produce a continuous panel.
+     */
+    private class CodeBackgroundSpan : LineBackgroundSpan {
+        override fun drawBackground(
+            canvas: Canvas, paint: Paint,
+            left: Int, right: Int, top: Int, baseline: Int, bottom: Int,
+            text: CharSequence, start: Int, end: Int, lineNumber: Int,
+        ) {
+            val prev = paint.color
+            paint.color = 0xFF111827.toInt()
+            canvas.drawRect(left.toFloat() + 2, top + 1f, right.toFloat() - 2, bottom - 1f, paint)
+            paint.color = prev
         }
-
-        // Bold
-        html = html.replace(Regex("\\*\\*(.+?)\\*\\*")) {
-            "<b>${it.groupValues[1]}</b>"
-        }
-
-        // Line breaks
-        html = html.replace("\n", "<br>")
-
-        return Html.fromHtml(html, Html.FROM_HTML_MODE_LEGACY)
     }
 }
