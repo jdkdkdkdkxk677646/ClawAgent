@@ -175,6 +175,9 @@ class ConversationTree {
         return chain
     }
 
+    private fun defaultBranchName(): String {
+        var n = branches.size + 1
+        while (branches.values.any { it.name == "Branch $n" }) n++
         return "Branch $n"
     }
 
