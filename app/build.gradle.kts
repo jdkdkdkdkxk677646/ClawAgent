@@ -45,4 +45,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.7.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okio:okio:3.9.0")
+    // Encrypted key/value store for the API key. Wraps AES-256 in the
+    // Android Keystore so the key never lands in plain text on disk.
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 }
