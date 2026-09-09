@@ -53,4 +53,9 @@ dependencies {
     // SseStreamParser tests can parse real JSON on the JVM.
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240205")
+    testImplementation("org.mockito:mockito-core:5.7.0")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.0")
+
+    // Logging used by ErrorHandler (provided at runtime via Timber).
+    implementation("com.jakewharton.timber:timber:5.0.1")
 }

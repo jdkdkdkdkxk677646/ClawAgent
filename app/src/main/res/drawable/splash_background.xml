@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android"
+    android:opacity="opaque">
+
+    <!-- Dark gradient background -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#0f1117"
+                android:endColor="#1a1d27"
+                android:angle="135"/>
+        </shape>
+    </item>
+
+    <!-- Top accent line -->
+    <item
+        android:width="80dp"
+        android:height="3dp"
+        android:gravity="top|center_horizontal"
+        android:top="80dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#6366f1"/>
+            <corners android:radius="2dp"/>
+        </shape>
+    </item>
+
+</layer-list>

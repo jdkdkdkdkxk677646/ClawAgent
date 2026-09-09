@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Dark mode theme overrides -->
+    <style name="Theme.ClawAgent" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorPrimaryContainer">@color/bg2</item>
+        <item name="colorSecondary">@color/accent2</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="m">false</item>
+        <item name="colorSurface">@color/bg</item>
+        <item name="colorOnSurface">@color/text</item>
+        <item name="colorSurfaceVariant">@color/bg2</item>
+        <item name="colorOnSurfaceVariant">@color/text2</item>
+    </style>
+
+</resources>
