@@ -23,18 +23,19 @@ import org.json.JSONObject
  */
 class SseStreamParser {
 
-    /** Carry-over for lines that didn't end in a newline at the previous read. */
-    private val pending = StringBuilder()
-
     /**
      * Pull the next complete data payload out of [source], or return null if
      * the source is exhausted and no more data is coming. The caller should
      * keep calling this until null is returned.
+     *
+     * Line splitting relies on okio's [BufferedSource.readUtf8Line], which
+     * handles both LF and CR LF and never returns a line that straddles a
+     * chunk boundary — that was the bug the original `chunk.split("\n")`
+     * approach had.
      */
     fun nextDataPayload(source: BufferedSource): String? {
         while (true) {
             // Read one logical line, delimited by LF (SSE spec) or CR LF.
-            // okio's readUtf8Line handles both, including EOF.
             val line = source.readUtf8Line() ?: return null
 
             if (line.startsWith("data:")) {
@@ -73,10 +74,5 @@ class SseStreamParser {
             }
             return delta
         }
-    }
-
-    /** Reset state. Useful if you want to reuse one parser across requests. */
-    fun reset() {
-        pending.setLength(0)
     }
 }

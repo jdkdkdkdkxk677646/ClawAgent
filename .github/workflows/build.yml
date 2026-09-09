@@ -44,6 +44,9 @@ jobs:
           echo "--- java version ---"
           java -version
 
+      - name: Run Unit Tests
+        run: gradle testDebugUnitTest --no-daemon
+
       - name: Build Debug APK
         run: gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build.log
 

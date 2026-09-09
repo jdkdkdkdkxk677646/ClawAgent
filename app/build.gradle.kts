@@ -11,8 +11,8 @@ android {
         applicationId = "com.openclaw.clawagent"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
     }
 
     buildTypes {
@@ -48,4 +48,9 @@ dependencies {
     // Encrypted key/value store for the API key. Wraps AES-256 in the
     // Android Keystore so the key never lands in plain text on disk.
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // Unit tests (JVM). org.json:json shadows the throwing Android stub so
+    // SseStreamParser tests can parse real JSON on the JVM.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240205")
 }
