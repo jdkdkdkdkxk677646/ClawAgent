@@ -36,9 +36,19 @@
 
 ## 交付记录(AI 完成后填)
 
-- 认领人:
-- 完成时间:
+- 认领人: 哈哈
+- 完成时间: 2026-09-10 15:40
 - 改动文件清单:
+  - 新增 `app/src/main/java/com/openclaw/clawagent/agent/ReminderStore.kt`(持久化存储)
+  - 新增 `app/src/main/java/com/openclaw/clawagent/agent/BootReceiver.kt`(开机重排)
+  - 修改 `app/src/main/java/com/openclaw/clawagent/agent/AndroidTools.kt`(仅 ReminderTool/ReminderReceiver 及 Intent extra)
+  - 修改 `app/src/main/AndroidManifest.xml`(仅加 RECEIVE_BOOT_COMPLETED 权限 + BootReceiver 声明)
+  - 新增 `app/src/test/java/com/openclaw/clawagent/agent/ReminderStoreTest.kt`(8 个用例)
 - 实现要点(3~5 行):
-- 测试结果:
-- 遗留问题/待接线:
+  - ReminderStore 纯 Kotlin:注入 read/write 回调,JSON 数组序列化存 SharedPreferences(选 SharedPreferences 而非每条一文件:提醒是同一 KV 域的小集合,单 key 原子替换免文件膨胀,且天然支持内存后端注入测试)。
+  - ReminderTool 成功 setAndAllowWhileIdle 后登记 {requestCode, triggerAt, message};Intent 增加 EXTRA_REQUEST_CODE/EXTRA_TRIGGER_AT(FLAG_IMMUTABLE 不变);ReminderReceiver 触发后从 Store 删除。
+  - BootReceiver 收到 BOOT_COMPLETED 后 goAsync() 重排所有 triggerAt > now 的提醒(重建 PendingIntent + setAndAllowWhileIdle 非精确),过期的直接补发「错过的提醒」通知并删除。
+  - Manifest 加 RECEIVE_BOOT_COMPLETED 权限 + BootReceiver exported=false 声明(带 BOOT_COMPLETED intent-filter)。
+  - ReminderTool.execute 对外参数与返回结构未动,仅括号内文案从"重启会丢失"改为"重启后自动恢复"。
+- 测试结果: 本地 Kotlin 2.2.0 + JUnit4 真实编译运行 8/8 全绿(register/remove/listAll/listPending/listExpired round-trip、同码覆盖、boot 模拟:过期删除+未过期保留)。CI 跑 ./gradlew testDebugUnitTest 验证全量。
+- 遗留问题/待接线: 无(BootReceiver 由 Manifest 自动接收广播,无需接线);AndroidTools.kt 中旧注释"reboots clear alarms"保留于类 KDoc 顶部,如需维护者顺手更新可删。

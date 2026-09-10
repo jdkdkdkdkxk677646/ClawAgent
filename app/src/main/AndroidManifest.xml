@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Agent 的 notify / remind 工具发系统通知用(API 33+ 运行时授权) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- BootReceiver:手机重启后恢复闹钟 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
@@ -39,5 +41,14 @@
         <receiver
             android:name=".agent.ReminderReceiver"
             android:exported="false" />
+
+        <!-- 手机重启后恢复未触发的提醒(BOOT_COMPLETED),过期提醒补发通知 -->
+        <receiver
+            android:name=".agent.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

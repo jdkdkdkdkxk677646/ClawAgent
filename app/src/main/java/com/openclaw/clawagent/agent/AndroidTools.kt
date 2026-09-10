@@ -384,11 +384,18 @@ class ReminderTool(private val context: Context) : AgentTool {
             val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
                 ?: return "错误:闹钟服务不可用。"
             val requestCode = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
+            // 持久化提醒记录，供 BootReceiver 在重启后重新调度
+            ReminderStore.forContext(context)
+                .register(requestCode, System.currentTimeMillis() + seconds * 1000L, message)
             val pi = PendingIntent.getBroadcast(
                 context,
                 requestCode,
-                Intent(context, ReminderReceiver::class.java)
-                    .putExtra(ReminderReceiver.EXTRA_MESSAGE, message),
+                Intent(context, ReminderReceiver::class.java).apply {
+                    putExtra(ReminderReceiver.EXTRA_MESSAGE, message)
+                    putExtra(ReminderReceiver.EXTRA_REQUEST_CODE, requestCode)
+                    putExtra(ReminderReceiver.EXTRA_TRIGGER_AT,
+                        System.currentTimeMillis() + seconds * 1000L)
+                },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             am.setAndAllowWhileIdle(
@@ -398,7 +405,7 @@ class ReminderTool(private val context: Context) : AgentTool {
             )
             val human = if (seconds % 60 == 0) "${seconds / 60} 分钟" else "$seconds 秒"
             "已设置提醒:${human}后提醒「$message」(系统级闹钟,应用被杀也会响;" +
-                "重启手机后未触发的提醒会丢失)"
+                "重启后由 BootReceiver 自动恢复未执行的提醒)"
         } catch (e: Exception) {
             "设置提醒失败:${e.message}"
         }
@@ -418,12 +425,17 @@ class ReminderReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val message = intent.getStringExtra(EXTRA_MESSAGE)?.take(400) ?: return
+        val requestCode = intent.getIntExtra(EXTRA_REQUEST_CODE, -1)
         runCatching {
             AgentNotifications.post(context.applicationContext, "⏰ 提醒", message)
+            if (requestCode != -1) ReminderStore.forContext(context).remove(requestCode)
         }
     }
 
     companion object {
         const val EXTRA_MESSAGE = "claw_remind_message"
+        const val EXTRA_REQUEST_CODE = "claw_remind_request_code"
+        const val EXTRA_TRIGGER_AT = "claw_remind_trigger_at"
     }
 }
+
