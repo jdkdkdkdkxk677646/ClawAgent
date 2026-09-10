@@ -125,4 +125,120 @@ class MarkdownParserTest {
             parse("```kotlin   \n1\n```"),
         )
     }
+
+    // ----- T-103: 表格 -----
+
+    @Test
+    fun `table with header separator and data rows`() {
+        assertEquals(
+            listOf(
+                Segment.Table(
+                    headers = listOf("A", "B"),
+                    rows = listOf(listOf("1", "2"), listOf("3", "4")),
+                ),
+            ),
+            parse("| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |"),
+        )
+    }
+
+    @Test
+    fun `table without leading or trailing pipes`() {
+        assertEquals(
+            listOf(
+                Segment.Table(
+                    headers = listOf("Name", "Age"),
+                    rows = listOf(listOf("Ada", "36")),
+                ),
+            ),
+            parse("Name | Age\n--- | ---\nAda | 36"),
+        )
+    }
+
+    @Test
+    fun `table with escaped pipe inside cell`() {
+        assertEquals(
+            listOf(
+                Segment.Table(
+                    headers = listOf("X", "Y"),
+                    rows = listOf(listOf("a|b", "c")),
+                ),
+            ),
+            parse("| X | Y |\n| --- | --- |\n| a\\|b | c |"),
+        )
+    }
+
+    @Test
+    fun `table is not parsed without separator row`() {
+        // 只有含 | 的行、没有分隔行 —— 应保持普通文本。
+        assertEquals(
+            listOf(Segment.Text("A | B\nC | D")),
+            parse("A | B\nC | D"),
+        )
+    }
+
+    // ----- T-103: 删除线 -----
+
+    @Test
+    fun `strikethrough is extracted`() {
+        assertEquals(
+            listOf(Segment.Text("a "), Segment.Strikethrough("gone"), Segment.Text(" b")),
+            parse("a ~~gone~~ b"),
+        )
+    }
+
+    @Test
+    fun `strikethrough inside inline code stays literal`() {
+        assertEquals(
+            listOf(Segment.InlineCode("~~not strike~~")),
+            parse("`~~not strike~~`"),
+        )
+    }
+
+    @Test
+    fun `strikethrough inside code block stays literal`() {
+        assertEquals(
+            listOf(Segment.CodeBlock("", "~~x~~\n")),
+            parse("```\n~~x~~\n```"),
+        )
+    }
+
+    // ----- T-103: 任务列表 -----
+
+    @Test
+    fun `task list unchecked and checked items`() {
+        assertEquals(
+            listOf(
+                Segment.TaskItem(checked = false, text = "todo"),
+                Segment.TaskItem(checked = true, text = "done"),
+            ),
+            parse("- [ ] todo\n- [x] done"),
+        )
+    }
+
+    @Test
+    fun `task list uppercase X is checked`() {
+        assertEquals(
+            listOf(Segment.TaskItem(checked = true, text = "done")),
+            parse("- [X] done"),
+        )
+    }
+
+    @Test
+    fun `plain list without checkbox is not a task item`() {
+        assertEquals(
+            listOf(Segment.Text("- just a list\n- another item")),
+            parse("- just a list\n- another item"),
+        )
+    }
+
+    @Test
+    fun `task item followed by prose keeps both`() {
+        assertEquals(
+            listOf(
+                Segment.TaskItem(checked = false, text = "todo"),
+                Segment.Text("then prose"),
+            ),
+            parse("- [ ] todo\nthen prose"),
+        )
+    }
 }

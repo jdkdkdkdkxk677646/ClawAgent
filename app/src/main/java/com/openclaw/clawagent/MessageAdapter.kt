@@ -9,6 +9,7 @@ import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
 import android.text.style.LineBackgroundSpan
 import android.text.style.RelativeSizeSpan
+import android.text.style.StrikethroughSpan
 import android.text.style.StyleSpan
 import android.text.style.TypefaceSpan
 import android.text.util.Linkify
@@ -118,12 +119,66 @@ class MessageAdapter(
                     sb.setSpan(CodeBackgroundSpan(), start, sb.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                     sb.setSpan(ForegroundColorSpan(0xFFD6E2F0.toInt()), start, sb.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
+
+                is Segment.Strikethrough -> {
+                    val start = sb.length
+                    sb.append(seg.text)
+                    sb.setSpan(StrikethroughSpan(), start, sb.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+
+                is Segment.TaskItem -> {
+                    // 勾选框只读，用字符呈现，不接交互。
+                    sb.append(if (seg.checked) "☑ " else "☐ ")
+                    sb.append(seg.text)
+                    sb.append('\n')
+                }
+
+                is Segment.Table -> {
+                    val start = sb.length
+                    sb.append(renderTable(seg))
+                    sb.setSpan(TypefaceSpan("monospace"), start, sb.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
             }
         }
 
         // Make plain URLs tappable. Works on the spannable we just built.
         Linkify.addLinks(sb, Linkify.WEB_URLS)
         return sb
+    }
+
+    /**
+     * Renders a [Segment.Table] as a monospace, column-aligned text table.
+     * Cell widths are measured by character count — CJK cells may misalign by
+     * a few columns, but the separator row still keeps the table readable.
+     */
+    private fun renderTable(table: Segment.Table): String {
+        val allRows = listOf(table.headers) + table.rows
+        val colCount = allRows.maxOfOrNull { it.size } ?: 0
+        if (colCount == 0) return ""
+        val widths = IntArray(colCount)
+        for (row in allRows) {
+            for (c in 0 until colCount) {
+                widths[c] = maxOf(widths[c], row.getOrElse(c) { "" }.length)
+            }
+        }
+        val out = StringBuilder()
+        allRows.forEachIndexed { idx, row ->
+            out.append("| ")
+            for (c in 0 until colCount) {
+                out.append(row.getOrElse(c) { "" }.padEnd(widths[c]))
+                if (c < colCount - 1) out.append(" | ")
+            }
+            out.append(" |\n")
+            if (idx == 0) {
+                out.append("| ")
+                for (c in 0 until colCount) {
+                    out.append("-".repeat(widths[c]))
+                    if (c < colCount - 1) out.append(" | ")
+                }
+                out.append(" |\n")
+            }
+        }
+        return out.toString()
     }
 
     /**
