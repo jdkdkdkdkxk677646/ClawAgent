@@ -45,11 +45,12 @@ class HttpToolLogicAdversarialTest {
     }
 
     @Test
-    fun `lone control char passes validateUrl`() {
-        // 行为固化 + 待维护者留意:ILLEGAL_URL_CHARS 注释称拒绝 control chars,
-        // 但正则只含空白与 < > " ' `,U+0001 不在其中,仍能通过校验。
-        // 实际抓取时 OkHttp 会拒绝该 URL 并降级为错误串,故无实害。
-        assertNotNull(HttpToolLogic.validateUrl("https://example.com/\u0001x"))
+    fun `control chars are rejected by validateUrl`() {
+        // 维护者裁决(T-105 发现):KDoc 承诺拒绝控制字符,实现已收紧——
+        // ILLEGAL_URL_CHARS 现含 \p{Cc},U+0001 等 Unicode 控制符一律拒绝。
+        assertNull(HttpToolLogic.validateUrl("https://example.com/\u0001x"))
+        assertNull(HttpToolLogic.validateUrl("https://example.com/\u007f"))
+        assertNull(HttpToolLogic.validateUrl("https://example.com/\u0000"))
     }
 
     // ── htmlToText 对抗 ──────────────────────────────────────────

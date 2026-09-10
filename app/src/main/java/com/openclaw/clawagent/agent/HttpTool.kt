@@ -120,7 +120,10 @@ class HttpRequestTool : AgentTool {
 /** Pure helpers shared by [HttpRequestTool] and its unit tests. */
 object HttpToolLogic {
 
-    private val ILLEGAL_URL_CHARS = Regex("[\\s<>\"'`]")
+    // \p{Cc} = every Unicode control char (incl. \t \n \r \x7f) — the KDoc
+    // promises they're rejected, so the character class must deliver. Blank
+    // runs are separately covered by \s for readability in error messages.
+    private val ILLEGAL_URL_CHARS = Regex("[\\s<>\"'`\\p{Cc}]")
 
     /**
      * Accepts absolute http/https URLs only. Returns null for anything

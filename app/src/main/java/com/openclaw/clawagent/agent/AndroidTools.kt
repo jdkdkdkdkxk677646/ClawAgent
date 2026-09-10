@@ -340,9 +340,10 @@ class NotificationTool(private val context: Context) : AgentTool {
  * fires within a few minutes even in Doze, no special permission needed).
  * Delivery is a broadcast to [ReminderReceiver], which posts the
  * notification — so the alarm fires even if the app process was killed in
- * the meantime. Two honest limits, stated in the tool's result: reboots
- * clear alarms (persisted re-scheduling needs a BootReceiver), and exact
- * timing is ± a few minutes.
+ * the meantime. Each alarm is also registered in [ReminderStore], and
+ * [BootReceiver] re-schedules pending ones (or posts a "missed reminder"
+ * notice) after a reboot. Remaining honest limit, stated in the tool's
+ * result: exact timing is ± a few minutes.
  */
 class ReminderTool(private val context: Context) : AgentTool {
 
