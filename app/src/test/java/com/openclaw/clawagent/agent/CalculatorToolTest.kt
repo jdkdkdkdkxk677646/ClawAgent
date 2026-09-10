@@ -73,7 +73,7 @@ class CalculatorToolTest {
     @Test
     fun `request json advertises core tools`() {
         val json = AgentToolbox.core(notesTempDir()).requestJson()
-        assertEquals(4, json.length())
+        assertEquals(6, json.length())
         val names = (0 until json.length()).map { i ->
             json.getJSONObject(i).getJSONObject("function").getString("name")
         }

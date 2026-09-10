@@ -91,7 +91,10 @@ class AgentToolboxTest {
     fun `filtered directive inventory matches the reduced set`() {
         val box = coreToolbox().filtered(setOf("notes"))
         val prompt = AgentDirective.systemPrompt(box)
-        assertTrue(prompt, prompt.contains("notes"))
-        assertFalse(prompt, prompt.contains("http_get"))
+        // Inventory lines are the precise signal: the directive's fixed text
+        // may mention other tools by name, but only enabled ones get a
+        // "- **name**:description" inventory line.
+        assertTrue(prompt, prompt.contains("- **notes**:"))
+        assertFalse(prompt, prompt.contains("- **http_get**:"))
     }
 }
