@@ -31,10 +31,10 @@ class ImageAttachmentsTest {
             "data:image/jpeg;base64,Zm9vYmFy",
             ImageAttachments.toDataUrl("image/jpeg", "foobar".toByteArray(Charsets.US_ASCII))
         )
-        // 0xFB 0xFF 0xBF -> "4//+" (exercises the `+` and `/` alphabet chars)
+        // 0xFB 0xFF 0xBF -> "+//+" (exercises the `+` and `/` alphabet chars)
         val bytes = byteArrayOf(0xFB.toByte(), 0xFF.toByte(), 0xBF.toByte())
         assertEquals(
-            "data:image/png;base64,4//+",
+            "data:image/png;base64,+//+",
             ImageAttachments.toDataUrl("image/png", bytes)
         )
     }

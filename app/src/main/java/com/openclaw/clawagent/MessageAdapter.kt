@@ -58,9 +58,17 @@ class MessageAdapter(
         /** Vertical bubble panel: text blocks first, table widgets appended below. */
         val bubble: LinearLayout
 
+        /**
+         * Position recorded at bind time. [adapterPosition] is -1 until the
+         * holder is attached to a RecyclerView (and manual binds in tests
+         * never attach), so the long-press handler prefers this.
+         */
+        var boundPosition: Int = RecyclerView.NO_POSITION
+
         /** Long-press copies the raw markdown, no matter which part was pressed. */
         val copyLongClick = View.OnLongClickListener {
-            val pos = adapterPosition
+            val pos = boundPosition.takeIf { it != RecyclerView.NO_POSITION }
+                ?: adapterPosition
             if (pos != RecyclerView.NO_POSITION) {
                 onMessageLongClick?.invoke(pos, messages[pos])
                 onCopy(messages[pos].content)
@@ -103,6 +111,7 @@ class MessageAdapter(
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
+        holder.boundPosition = position
         val msg = messages[position]
         val binding = holder.binding
         val context = holder.itemView.context
