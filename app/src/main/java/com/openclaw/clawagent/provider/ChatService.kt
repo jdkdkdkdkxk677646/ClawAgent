@@ -111,6 +111,37 @@ class ChatService(
             put("content", msg.content)
             msg.toolCallId?.let { put("tool_call_id", it) }
             msg.toolName?.let { put("name", it) }
+        } else if (msg.images.isNotEmpty()) {
+            // OpenAI vision format: content becomes a multipart array of one
+            // text segment plus one image_url segment per image.
+            put("content", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("type", "text")
+                    put("text", msg.content)
+                })
+                msg.images.forEach { url ->
+                    put(JSONObject().apply {
+                        put("type", "image_url")
+                        put("image_url", JSONObject().apply { put("url", url) })
+                    })
+                }
+            })
+            msg.toolCalls?.let { calls ->
+                if (calls.isNotEmpty()) {
+                    put("tool_calls", JSONArray().apply {
+                        calls.forEach { call ->
+                            put(JSONObject().apply {
+                                put("id", call.id)
+                                put("type", "function")
+                                put("function", JSONObject().apply {
+                                    put("name", call.name)
+                                    put("arguments", call.arguments)
+                                })
+                            })
+                        }
+                    })
+                }
+            }
         } else {
             put("content", msg.content)
             msg.toolCalls?.let { calls ->
@@ -228,6 +259,11 @@ class ChatService(
      * A conversation message. Plain turns only use [role]/[content]; agent
      * turns additionally carry either [toolCalls] (assistant asking for tool
      * executions) or [toolCallId]/[toolName] (`role:"tool"` results).
+     *
+     * [images] (vision turns): full data URLs (`data:image/jpeg;base64,…`)
+     * or http(s) image URLs. Non-empty on a non-tool message makes
+     * [serializeMessage] emit OpenAI's multimodal content array instead of a
+     * plain string. Images are a per-request concern — never persisted.
      */
     data class Message(
         val role: String,
@@ -235,6 +271,7 @@ class ChatService(
         val toolCalls: List<ToolCall>? = null,
         val toolCallId: String? = null,
         val toolName: String? = null,
+        val images: List<String> = emptyList(),
     )
 
     sealed class StreamEvent {

@@ -190,6 +190,16 @@
         android:background="#0f1117"
         android:gravity="center_vertical">
 
+        <ImageButton
+            android:id="@+id/attachBtn"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_gallery"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="#60a5fa"
+            android:layout_marginEnd="8dp"
+            android:contentDescription="添加图片" />
+
         <EditText
             android:id="@+id/inputField"
             android:layout_width="0dp"

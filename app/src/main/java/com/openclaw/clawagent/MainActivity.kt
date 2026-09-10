@@ -5,7 +5,9 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
+import android.util.Base64
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
@@ -13,6 +15,8 @@ import android.widget.ArrayAdapter
 import android.widget.ListView
 import android.widget.Toast
 import android.widget.TwoLineListItem
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -58,6 +62,43 @@ class MainActivity : AppCompatActivity() {
     // notifications, reminders, calculator, clock). Built once with the app
     // context; execution happens off the main thread in the agent loop.
     private lateinit var toolbox: AgentToolbox
+
+    // Vision turns: images staged for the NEXT outgoing message, as data
+    // URLs. Per-request only — the conversation tree never stores the bytes.
+    private val pendingImages = mutableListOf<String>()
+
+    private val pickImage = registerForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri == null) return@registerForActivityResult
+        val bytes = try {
+            contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        } catch (_: Exception) {
+            null
+        }
+        if (bytes == null) {
+            Toast.makeText(this, "读取图片失败", Toast.LENGTH_SHORT).show()
+            return@registerForActivityResult
+        }
+        if (bytes.size > MAX_IMAGE_BYTES) {
+            Toast.makeText(this, "图片过大(>4MB),换一张吧", Toast.LENGTH_SHORT).show()
+            return@registerForActivityResult
+        }
+        val mime = contentResolver.getType(uri) ?: "image/jpeg"
+        pendingImages.add("data:$mime;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP))
+        updateAttachButton()
+    }
+
+    /** Visual state of the attach claw: neutral when empty, amber when staged. */
+    private fun updateAttachButton() {
+        binding.attachBtn.imageTintList = android.content.res.ColorStateList.valueOf(
+            if (pendingImages.isEmpty()) Color.parseColor("#60a5fa")
+            else Color.parseColor("#fbbf24")
+        )
+        binding.attachBtn.contentDescription =
+            if (pendingImages.isEmpty()) "添加图片"
+            else "已选 ${pendingImages.size}/${MAX_IMAGES} 张图片"
+    }
 
     // Conversation tree with branches. Always non-null after onCreate; we
     // keep a `messages` mirror of `tree.visibleMessages()` so the existing
@@ -132,6 +173,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupListeners() {
         binding.sendBtn.setOnClickListener { sendMessage() }
+        binding.attachBtn.setOnClickListener {
+            if (pendingImages.size >= MAX_IMAGES) {
+                Toast.makeText(this, "最多带 ${MAX_IMAGES} 张图片", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            pickImage.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+        }
         binding.inputField.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) {
                 sendMessage()
@@ -202,16 +252,27 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val text = binding.inputField.text.toString().trim()
-        if (text.isEmpty()) return
+        if (text.isEmpty() && pendingImages.isEmpty()) return
+
+        // Snapshot & clear the staged images before anything else: the
+        // request owns them from here on.
+        val imageCount = pendingImages.size
+        val outgoingImages = pendingImages.toList()
+        pendingImages.clear()
 
         isSending = true
         updateSendButton()
+        updateAttachButton()
         binding.inputField.setText("")
 
         // Push the user message into the tree BEFORE mirroring to messages,
         // so the new entry is preserved across a save/load round trip even
-        // if the process dies mid-stream.
-        tree.appendMessage("user", text)
+        // if the process dies mid-stream. Images persist as a text marker
+        // only — the bytes stay a per-request concern.
+        tree.appendMessage(
+            "user",
+            if (imageCount > 0) "[图片 x$imageCount]\n$text" else text,
+        )
         syncMessagesFromTree()
 
         // Empty placeholder that the streaming response will fill in.
@@ -238,7 +299,7 @@ class MainActivity : AppCompatActivity() {
                     return@launch
                 }
 
-                val history = buildRequestHistory(text)
+                val history = buildRequestHistory(text, outgoingImages)
 
                 runAgentTurn(history, assistantMsg, assistantIndex, apiKey, model)
             } catch (e: CancellationException) {
@@ -289,7 +350,10 @@ class MainActivity : AppCompatActivity() {
     private fun activeToolbox(): AgentToolbox =
         toolbox.filtered(toolbox.names.filter { prefs.isToolEnabled(it) })
 
-    private fun buildRequestHistory(text: String): List<ChatService.Message> {
+    private fun buildRequestHistory(
+        text: String,
+        images: List<String> = emptyList(),
+    ): List<ChatService.Message> {
         val systemMessages = buildList {
             val persona = prefs.systemPrompt.trim()
             if (persona.isNotEmpty()) add(ChatService.Message("system", persona))
@@ -299,13 +363,20 @@ class MainActivity : AppCompatActivity() {
                 add(ChatService.Message("system", AgentDirective.systemPrompt(activeToolbox())))
             }
         }
-        if (!prefs.keepContext) {
-            return systemMessages + listOf(ChatService.Message("user", text))
+        val history = if (!prefs.keepContext) {
+            systemMessages + listOf(ChatService.Message("user", text))
+        } else {
+            val base = messages.dropLast(1).map { ChatService.Message(it.role, it.content) }
+            val limit = prefs.contextLimit
+            val limited = if (limit > 0) base.takeLast(limit) else base
+            systemMessages + limited
         }
-        val base = messages.dropLast(1).map { ChatService.Message(it.role, it.content) }
-        val limit = prefs.contextLimit
-        val limited = if (limit > 0) base.takeLast(limit) else base
-        return systemMessages + limited
+        // Attach staged images to the trailing user turn (multimodal wire
+        // format in serializeMessage). Only the final user turn carries them.
+        if (images.isEmpty()) return history
+        return history.mapIndexed { i, m ->
+            if (i == history.lastIndex && m.role == "user") m.copy(images = images) else m
+        }
     }
 
     /**
@@ -900,6 +971,8 @@ class MainActivity : AppCompatActivity() {
         /** Cap on model rounds per user turn in agent mode (tool-call loop). */
         private const val MAX_TOOL_ROUNDS = 15
         private const val RESULT_PREVIEW_CHARS = 300
+        private const val MAX_IMAGES = 3
+        private const val MAX_IMAGE_BYTES = 4 * 1024 * 1024
 
         /** Friendly labels for the tool-configuration multi-choice dialog. */
         private val TOOL_LABELS = mapOf(
