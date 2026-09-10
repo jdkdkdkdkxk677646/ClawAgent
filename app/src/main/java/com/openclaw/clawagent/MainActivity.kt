@@ -512,6 +512,10 @@ class MainActivity : AppCompatActivity() {
                 tools = toolsJson,
             ).collect { event ->
                 when (event) {
+                    is ChatService.StreamEvent.Usage -> {
+                        // Accounting already happened inside ChatService
+                        // (usageTracker); the event is here for future UI.
+                    }
                     is ChatService.StreamEvent.Delta -> {
                         roundContent += event.text
                         assistantMsg.content += event.text
