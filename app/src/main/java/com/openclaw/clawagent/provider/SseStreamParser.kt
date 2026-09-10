@@ -17,6 +17,7 @@ import org.json.JSONObject
  * The wire format we parse:
  *   data: {"choices":[{"delta":{"content":"hi"}}]}
  *   data: {"choices":[{"delta":{"tool_calls":[...]}}]}   // agent tool calls
+ *   data: {"choices":[],"usage":{...}}                   // usage (usually final chunk)
  *   data: [DONE]
  *
  * Non-`data:` lines (event ids, comments, heartbeats) are ignored, which is
@@ -30,7 +31,65 @@ class SseStreamParser {
         val contentDelta: String,
         /** Raw `delta.tool_calls` fragments, or null when absent. */
         val toolCallFragments: JSONArray?,
+        /**
+         * Top-level `usage` object carried by this frame (usually only the
+         * final, choices-less chunk has one). Null when absent — many
+         * compatible endpoints never report usage at all, which is a normal
+         * state, not an error.
+         */
+        val usage: Usage? = null,
     )
+
+    /**
+     * Token accounting from the OpenAI `usage` object
+     * (`{"prompt_tokens":..,"completion_tokens":..,"total_tokens":..}`).
+     * Lives on the parser because streaming chunks and non-streaming
+     * response bodies carry exactly this shape, and both paths in
+     * [ChatService] extract it through [fromJson].
+     */
+    data class Usage(
+        val promptTokens: Long,
+        val completionTokens: Long,
+        val totalTokens: Long,
+    ) {
+        companion object {
+            /**
+             * Extract `usage` from a stream chunk or response body JSON.
+             * Returns null when usage is absent, JSON-null, or an empty
+             * object — "provider didn't report usage" must never surface
+             * as an error, so callers simply skip accounting.
+             */
+            fun fromJson(json: JSONObject): Usage? {
+                val usage = json.optJSONObject("usage") ?: return null
+                if (!usage.has("prompt_tokens") &&
+                    !usage.has("completion_tokens") &&
+                    !usage.has("total_tokens")
+                ) {
+                    return null
+                }
+                val prompt = usage.optLong("prompt_tokens", 0L)
+                val completion = usage.optLong("completion_tokens", 0L)
+                // Some compatible endpoints omit total_tokens; deriving it
+                // keeps summaries from undercounting instead of showing a
+                // misleading 0 total.
+                val total = if (usage.has("total_tokens")) {
+                    usage.optLong("total_tokens", 0L)
+                } else {
+                    prompt + completion
+                }
+                return Usage(prompt, completion, total)
+            }
+        }
+    }
+
+    /**
+     * The last usage object seen on this stream, or null when none arrived.
+     * Keeping the last occurrence (instead of forwarding every frame's) lets
+     * [ChatService] emit exactly one Usage event per request, right before
+     * Done — some providers repeat usage on several chunks.
+     */
+    var lastUsage: Usage? = null
+        private set
 
     /**
      * Pull the next complete data payload out of [source], or return null if
@@ -61,7 +120,9 @@ class SseStreamParser {
      * Pull the next frame and split it into a content delta plus optional
      * tool-call fragments. Returns null when the stream ended ([DONE] or EOF).
      * Frames without any choices payload yield an empty content delta, so
-     * callers can keep pulling.
+     * callers can keep pulling. A top-level `usage` object (typically on the
+     * final, choices-less chunk) is surfaced on [Frame.usage] and remembered
+     * in [lastUsage]; frames without one are completely unaffected.
      */
     fun nextFrame(source: BufferedSource): Frame? {
         while (true) {
@@ -70,8 +131,10 @@ class SseStreamParser {
 
             try {
                 val json = JSONObject(payload)
-                val choices = json.optJSONArray("choices") ?: return Frame("", null)
-                if (choices.length() == 0) return Frame("", null)
+                val usage = Usage.fromJson(json)
+                if (usage != null) lastUsage = usage
+                val choices = json.optJSONArray("choices") ?: return Frame("", null, usage)
+                if (choices.length() == 0) return Frame("", null, usage)
 
                 val first = choices.getJSONObject(0)
                 // Streaming frames carry `delta`; some providers send a full
@@ -79,7 +142,7 @@ class SseStreamParser {
                 val delta = first.optJSONObject("delta")
                     ?: first.optJSONObject("message")
 
-                if (delta == null) return Frame("", null)
+                if (delta == null) return Frame("", null, usage)
 
                 val content = if (delta.has("content")) {
                     delta.optString("content", "")
@@ -87,7 +150,7 @@ class SseStreamParser {
                     ""
                 }
                 val toolCalls = delta.optJSONArray("tool_calls")
-                return Frame(content, toolCalls)
+                return Frame(content, toolCalls, usage)
             } catch (e: JSONException) {
                 // Malformed frame — skip and try the next one. The OpenAI
                 // protocol rarely sends broken JSON, so this is just a safety

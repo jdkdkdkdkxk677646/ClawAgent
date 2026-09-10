@@ -46,7 +46,7 @@ class ReminderStore private constructor(
     fun listPending(nowMillis: Long): List<Entry> =
         synchronized(lock) { loadList().filter { it.triggerAtMillis > nowMillis } }
 
-    /** 返回已过期的提醒（triggerAtMillis <= nowMillis)。 */
+    /** 返回已过期的提醒（triggerAtMillis <= nowMillis）。 */
     fun listExpired(nowMillis: Long): List<Entry> =
         synchronized(lock) { loadList().filter { it.triggerAtMillis <= nowMillis } }
 

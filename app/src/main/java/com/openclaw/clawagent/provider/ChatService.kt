@@ -27,9 +27,24 @@ import java.util.concurrent.TimeUnit
  * [StreamEvent.ToolCalls] when the model requests tool executions. The caller
  * runs the tools and loops with the results appended as `role:"tool"`
  * messages ([Message.toolCallId]).
+ *
+ * Token accounting: when the provider reports a `usage` object (streaming:
+ * on the final chunk; non-streaming: at the JSON top level), the flow emits
+ * one [StreamEvent.Usage] right before [StreamEvent.Done]. Providers that
+ * don't report usage produce no Usage event at all — the legacy
+ * Delta/ToolCalls/Error/Done sequence is unchanged. Pass a [usageTracker] to
+ * also persist the numbers per day.
  */
 class ChatService(
     private val client: OkHttpClient = defaultClient(),
+    /**
+     * Optional daily token ledger. When present, provider-reported usage
+     * (see [StreamEvent.Usage]) is recorded into it as a side effect —
+     * record never throws, so accounting can never break a chat request.
+     * Callers that only relay the Usage event leave it null (the default),
+     * which keeps legacy behavior byte-for-byte.
+     */
+    private val usageTracker: UsageTracker? = null,
 ) {
 
     /**
@@ -209,6 +224,11 @@ class ChatService(
             if (toolAccumulator.hasCalls) {
                 scope.trySend(StreamEvent.ToolCalls(toolAccumulator.toCalls()))
             }
+            // Usage rides on the final chunk; the parser remembers the last
+            // one seen, so this fires at most once per request — and never
+            // when the provider reported nothing. Must precede Done: that is
+            // where existing collectors treat the stream as finished.
+            parser.lastUsage?.let { emitUsage(scope, it) }
             scope.trySend(StreamEvent.Done)
             scope.close()
         }
@@ -220,9 +240,16 @@ class ChatService(
             scope.close()
             return
         }
-        val message = try {
+        // Root kept around: usage lives at the top level, next to choices.
+        val root = try {
             JSONObject(text)
-                .getJSONArray("choices")
+        } catch (e: Exception) {
+            scope.trySend(StreamEvent.Error("解析响应失败:${e.message}", e))
+            scope.close()
+            return
+        }
+        val message = try {
+            root.getJSONArray("choices")
                 .getJSONObject(0)
                 .getJSONObject("message")
         } catch (e: Exception) {
@@ -243,8 +270,22 @@ class ChatService(
             }
         }
 
+        // Non-stream responses carry usage at the top level of the same
+        // JSON. Absent → nothing emitted, stream continues unchanged.
+        SseStreamParser.Usage.fromJson(root)?.let { emitUsage(scope, it) }
         scope.trySend(StreamEvent.Done)
         scope.close()
+    }
+
+    /**
+     * Surface one provider-reported usage: record it into the optional
+     * [usageTracker] and emit it as an event. Always called immediately
+     * before Done — the stream must keep ending with Done for existing
+     * collectors.
+     */
+    private fun emitUsage(scope: ProducerScope<StreamEvent>, usage: SseStreamParser.Usage) {
+        usageTracker?.record(usage.promptTokens, usage.completionTokens, usage.totalTokens)
+        scope.trySend(StreamEvent.Usage(usage.promptTokens, usage.completionTokens, usage.totalTokens))
     }
 
     /** One function call the model asks the app to execute. */
@@ -278,6 +319,19 @@ class ChatService(
         data class Delta(val text: String) : StreamEvent()
         data class ToolCalls(val calls: List<ToolCall>) : StreamEvent()
         data class Error(val message: String, val cause: Throwable? = null) : StreamEvent()
+        /**
+         * Token usage reported by the provider (OpenAI `usage` object).
+         * Emitted at most once per request, immediately before [Done];
+         * omitted entirely when the provider doesn't report usage. New
+         * subtype, so existing collectors that don't handle it simply
+         * ignore it and the legacy Delta/ToolCalls/Error/Done sequence
+         * stays untouched.
+         */
+        data class Usage(
+            val promptTokens: Long,
+            val completionTokens: Long,
+            val totalTokens: Long,
+        ) : StreamEvent()
         data object Done : StreamEvent()
     }
 

@@ -133,6 +133,14 @@ class SecurePrefs(context: Context) {
 
     fun isApiKeyStored(): Boolean = getApiKey().isNotEmpty()
 
+    /**
+     * Non-sensitive KV surface for the daily token ledger
+     * ([UsageTracker] keys are `usage_tokens_*`-namespaced, so they never
+     * collide with the settings keys above). Shares the plain prefs file —
+     * usage numbers are not secrets and don't deserve keystore weight.
+     */
+    fun usageStore(): UsageStore = SharedPrefsUsageStore(plain)
+
     companion object {
         private const val PLAIN_NAME = "claw_settings"
         private const val SECURE_NAME = "claw_secure"

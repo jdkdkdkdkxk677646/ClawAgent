@@ -1,5 +1,13 @@
 package com.openclaw.clawagent.provider
 
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -113,5 +121,137 @@ class ChatServiceTest {
         // user/assistant turns only.
         assertEquals("42", json.getString("content"))
         assertFalse(json.has("image_url"))
+    }
+
+    // ── usage extraction, end to end over a faked OkHttp transport ──────
+    //
+    // A short-circuit interceptor stands in for the network: no socket, no
+    // mockwebserver dependency. These tests pin the full event contract:
+    // the legacy Delta/ToolCalls/Error/Done sequence is untouched, and the
+    // optional Usage event (when the provider reports one) lands right
+    // before Done.
+
+    private fun fakeClient(body: String, mediaType: MediaType): OkHttpClient =
+        OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(body.toResponseBody(mediaType))
+                    .build()
+            }
+            .build()
+
+    private fun collect(
+        body: String,
+        mediaType: MediaType,
+        tracker: UsageTracker? = null,
+        stream: Boolean,
+    ): List<ChatService.StreamEvent> = runBlocking {
+        ChatService(fakeClient(body, mediaType), tracker)
+            .streamChat(
+                endpoint = "https://unit.test/v1/chat/completions",
+                apiKey = "",
+                model = "test-model",
+                history = listOf(ChatService.Message("user", "hi")),
+                stream = stream,
+            )
+            .toList()
+    }
+
+    @Test
+    fun `streaming usage chunk emits Usage right before Done`() {
+        val sse = buildString {
+            append("""data: {"choices":[{"delta":{"content":"你好"}}]}""")
+            append("\n\n")
+            append("""data: {"choices":[{"delta":{}}]}""")
+            append("\n\n")
+            append("""data: {"choices":[],"usage":{"prompt_tokens":12,"completion_tokens":34,"total_tokens":46}}""")
+            append("\n\n")
+            append("data: [DONE]\n\n")
+        }
+        val events = collect(sse, "text/event-stream".toMediaType(), stream = true)
+        assertEquals(
+            listOf(
+                ChatService.StreamEvent.Delta("你好"),
+                ChatService.StreamEvent.Usage(12, 34, 46),
+                ChatService.StreamEvent.Done,
+            ),
+            events,
+        )
+    }
+
+    @Test
+    fun `non-stream response emits Usage from the top-level object`() {
+        val json =
+            """{"choices":[{"message":{"role":"assistant","content":"hi"}}],""" +
+                """"usage":{"prompt_tokens":5,"completion_tokens":7,"total_tokens":12}}"""
+        val events = collect(json, "application/json".toMediaType(), stream = false)
+        assertEquals(
+            listOf(
+                ChatService.StreamEvent.Delta("hi"),
+                ChatService.StreamEvent.Usage(5, 7, 12),
+                ChatService.StreamEvent.Done,
+            ),
+            events,
+        )
+    }
+
+    @Test
+    fun `stream without usage keeps the legacy event sequence`() {
+        val sse = """data: {"choices":[{"delta":{"content":"hi"}}]}""" + "\n\ndata: [DONE]\n\n"
+        val events = collect(sse, "text/event-stream".toMediaType(), stream = true)
+        assertEquals(
+            listOf(ChatService.StreamEvent.Delta("hi"), ChatService.StreamEvent.Done),
+            events,
+        )
+    }
+
+    @Test
+    fun `non-stream response without usage keeps the legacy sequence`() {
+        val json = """{"choices":[{"message":{"role":"assistant","content":"hi"}}]}"""
+        val events = collect(json, "application/json".toMediaType(), stream = false)
+        assertEquals(
+            listOf(ChatService.StreamEvent.Delta("hi"), ChatService.StreamEvent.Done),
+            events,
+        )
+    }
+
+    @Test
+    fun `streaming usage is recorded into the injected tracker`() {
+        val store = java.util.concurrent.ConcurrentHashMap<String, String>()
+        val tracker = UsageTracker(
+            read = { store[it] },
+            write = { key, value -> store[key] = value },
+            todayKey = { "2026-07-22" },
+        )
+        val sse = """data: {"choices":[{"delta":{"content":"hi"}}]}""" + "\n\n" +
+            """data: {"choices":[],"usage":{"prompt_tokens":100,"completion_tokens":200,"total_tokens":300}}""" +
+            "\n\ndata: [DONE]\n\n"
+        collect(sse, "text/event-stream".toMediaType(), tracker, stream = true)
+        assertEquals(
+            UsageTracker.DayUsage(1, 100, 200, 300),
+            tracker.todayUsage(),
+        )
+    }
+
+    @Test
+    fun `non-stream usage is recorded into the injected tracker`() {
+        val store = java.util.concurrent.ConcurrentHashMap<String, String>()
+        val tracker = UsageTracker(
+            read = { store[it] },
+            write = { key, value -> store[key] = value },
+            todayKey = { "2026-07-22" },
+        )
+        val json =
+            """{"choices":[{"message":{"role":"assistant","content":"hi"}}],""" +
+                """"usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}"""
+        collect(json, "application/json".toMediaType(), tracker, stream = false)
+        assertEquals(
+            UsageTracker.DayUsage(1, 1, 2, 3),
+            tracker.todayUsage(),
+        )
     }
 }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    气泡内的追加文本块：表格把消息内容截断时，表格之后的文本落到这里
+    （首个文本块仍复用 item_message.xml 的 messageText，样式保持一致：
+    14sp、1.4 行距；文字颜色由 MessageAdapter 按角色设置）。
+-->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/bubbleTextExtra"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:textSize="14sp"
+    android:lineSpacingMultiplier="1.4" />

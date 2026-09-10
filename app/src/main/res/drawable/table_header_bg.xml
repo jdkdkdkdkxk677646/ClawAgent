@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 表头底色：色板里的 bg3（#22263a），比气泡面板色 #1a1d27 浅一档，用于区分表头行。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#22263a" />
+</shape>

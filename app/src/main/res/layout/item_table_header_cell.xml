@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    表头单元格：加粗 + 浅一档底色（色板 bg3 #22263a），
+    与 #1a1d27 的气泡面板（msg_assistant_bg）形成区分。
+-->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/table_header_bg"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="10dp"
+    android:textColor="#e2e8f0"
+    android:textSize="14sp"
+    android:textStyle="bold" />

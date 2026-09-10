@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 表格行分隔线：1dp 暗色（#2a2f3a），由 TableLayout 的 divider 机制绘制在行与行之间。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#2a2f3a" />
+    <size android:height="1dp" />
+</shape>

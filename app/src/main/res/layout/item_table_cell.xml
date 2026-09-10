@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    数据行单元格。宽高由 TableLayout/TableRow 管理（列宽按内容自适应，
+    单元格文字不换行，超宽交给外层横向滚动）；文字颜色与气泡一级文本一致。
+-->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="10dp"
+    android:textColor="#e2e8f0"
+    android:textSize="14sp" />

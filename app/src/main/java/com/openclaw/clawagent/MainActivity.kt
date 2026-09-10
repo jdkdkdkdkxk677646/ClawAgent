@@ -7,7 +7,6 @@ import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
-import android.util.Base64
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
@@ -19,6 +18,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.openclaw.clawagent.agent.AgentDirective
@@ -36,11 +36,13 @@ import com.openclaw.clawagent.provider.ProviderHealth
 import com.openclaw.clawagent.provider.ProviderHealthCache
 import com.openclaw.clawagent.provider.ProviderHealthChecker
 import com.openclaw.clawagent.provider.SecurePrefs
+import com.openclaw.clawagent.provider.UsageTracker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -54,7 +56,13 @@ class MainActivity : AppCompatActivity() {
     private var sendJob: Job? = null
 
     private lateinit var prefs: SecurePrefs
-    private val chatService = ChatService()
+
+    // lazy because the ledger needs prefs: by first sendMessage() both are
+    // initialized. Provider-reported usage lands in the daily ledger as a
+    // side effect of every request (agent-loop rounds count individually).
+    private val chatService: ChatService by lazy {
+        ChatService(usageTracker = UsageTracker(prefs.usageStore()))
+    }
     private val healthChecker = ProviderHealthChecker()
     private val healthCache = ProviderHealthCache()
 
@@ -80,13 +88,47 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "读取图片失败", Toast.LENGTH_SHORT).show()
             return@registerForActivityResult
         }
-        if (bytes.size > MAX_IMAGE_BYTES) {
+        if (ImageAttachments.isTooLarge(bytes, MAX_IMAGE_BYTES)) {
             Toast.makeText(this, "图片过大(>4MB),换一张吧", Toast.LENGTH_SHORT).show()
             return@registerForActivityResult
         }
         val mime = contentResolver.getType(uri) ?: "image/jpeg"
-        pendingImages.add("data:$mime;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP))
+        pendingImages.add(ImageAttachments.toDataUrl(mime, bytes))
         updateAttachButton()
+    }
+
+    // Camera capture: TakePicture hands the system camera a FileProvider URI
+    // under cacheDir/photos. On success the bytes go through the exact same
+    // size check + data-URL wrap as gallery picks. The temp file is deleted
+    // on every path — success, user cancel, oversized rejection, read error.
+    private var pendingPhotoFile: File? = null
+
+    private val takePicture = registerForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { ok: Boolean ->
+        val file = pendingPhotoFile
+        pendingPhotoFile = null
+        try {
+            if (ok && file != null) {
+                val bytes = try {
+                    file.readBytes()
+                } catch (_: Exception) {
+                    null
+                }
+                when {
+                    bytes == null ->
+                        Toast.makeText(this, "读取照片失败", Toast.LENGTH_SHORT).show()
+                    ImageAttachments.isTooLarge(bytes, MAX_IMAGE_BYTES) ->
+                        Toast.makeText(this, "图片过大(>4MB),换一张吧", Toast.LENGTH_SHORT).show()
+                    else -> {
+                        pendingImages.add(ImageAttachments.toDataUrl("image/jpeg", bytes))
+                        updateAttachButton()
+                    }
+                }
+            }
+        } finally {
+            file?.delete()
+        }
     }
 
     /** Visual state of the attach claw: neutral when empty, amber when staged. */
@@ -98,6 +140,58 @@ class MainActivity : AppCompatActivity() {
         binding.attachBtn.contentDescription =
             if (pendingImages.isEmpty()) "添加图片"
             else "已选 ${pendingImages.size}/${MAX_IMAGES} 张图片"
+    }
+
+    /** Single tap on the attach claw: straight to the gallery (unchanged). */
+    private fun launchGallery() {
+        pickImage.launch(
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+        )
+    }
+
+    /**
+     * Camera entry: create a timestamped temp file under cacheDir/photos and
+     * let the camera app write into it through the FileProvider-backed URI.
+     * The callback (takePicture) owns cleanup from here on; the guards below
+     * only cover failures before the camera activity ever starts.
+     */
+    private fun launchCamera() {
+        // Defensive: a session that never reached the callback (e.g. process
+        // death mid-capture) must not leak its temp file.
+        pendingPhotoFile?.delete()
+        val dir = File(cacheDir, "photos").apply { mkdirs() }
+        val name = "IMG_" +
+            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ".jpg"
+        val file = File(dir, name)
+        val uri = try {
+            FileProvider.getUriForFile(this, "${applicationId}.fileprovider", file)
+        } catch (e: Exception) {
+            Toast.makeText(this, "无法启动相机:${e.message}", Toast.LENGTH_SHORT).show()
+            return
+        }
+        pendingPhotoFile = file
+        try {
+            takePicture.launch(uri)
+        } catch (e: Exception) {
+            pendingPhotoFile = null
+            file.delete()
+            Toast.makeText(this, "无法启动相机:${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Long press on the attach claw: pick a source between gallery/camera. */
+    private fun showImageSourceDialog() {
+        val sources = arrayOf("从相册选择", "拍照")
+        AlertDialog.Builder(this)
+            .setTitle("图片来源")
+            .setItems(sources) { _, which ->
+                when (which) {
+                    0 -> launchGallery()
+                    1 -> launchCamera()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     // Conversation tree with branches. Always non-null after onCreate; we
@@ -178,9 +272,15 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "最多带 ${MAX_IMAGES} 张图片", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            pickImage.launch(
-                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-            )
+            launchGallery()
+        }
+        binding.attachBtn.setOnLongClickListener {
+            if (pendingImages.size >= MAX_IMAGES) {
+                Toast.makeText(this, "最多带 ${MAX_IMAGES} 张图片", Toast.LENGTH_SHORT).show()
+            } else {
+                showImageSourceDialog()
+            }
+            true
         }
         binding.inputField.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) {

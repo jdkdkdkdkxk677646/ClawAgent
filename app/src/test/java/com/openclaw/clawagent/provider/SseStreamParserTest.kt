@@ -138,4 +138,99 @@ class SseStreamParserTest {
         assertEquals("hm", frame!!.contentDelta)
         assertEquals(1, frame.toolCallFragments!!.length())
     }
+
+    // ── usage extraction ─────────────────────────────────────────
+
+    @Test
+    fun `usage chunk exposes usage on the frame and as lastUsage`() {
+        // OpenAI streaming puts usage on a final, choices-less chunk.
+        val buffer = Buffer()
+        buffer.writeUtf8(
+            """data: {"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":20,"total_tokens":30}}""" + "\n\n"
+        )
+        val parser = SseStreamParser()
+        val frame = parser.nextFrame(buffer)
+        assertNotNull(frame)
+        assertEquals(SseStreamParser.Usage(10, 20, 30), frame!!.usage)
+        assertEquals(SseStreamParser.Usage(10, 20, 30), parser.lastUsage)
+    }
+
+    @Test
+    fun `frames without usage keep it null and lastUsage stays null`() {
+        val buffer = Buffer()
+        buffer.writeUtf8("""data: {"choices":[{"delta":{"content":"hi"}}]}""" + "\n\n")
+        val parser = SseStreamParser()
+        val frame = parser.nextFrame(buffer)
+        assertNotNull(frame)
+        assertNull(frame!!.usage)
+        assertNull(parser.lastUsage)
+    }
+
+    @Test
+    fun `usage after content chunks is remembered as lastUsage`() {
+        val buffer = Buffer()
+        buffer.writeUtf8("""data: {"choices":[{"delta":{"content":"a"}}]}""" + "\n\n")
+        buffer.writeUtf8("""data: {"choices":[{"delta":{}}]}""" + "\n\n")
+        buffer.writeUtf8(
+            """data: {"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}""" + "\n\n"
+        )
+        buffer.writeUtf8("data: [DONE]\n\n")
+        val parser = SseStreamParser()
+        while (parser.nextFrame(buffer) != null) {
+            // Drain the whole stream.
+        }
+        assertEquals(SseStreamParser.Usage(1, 2, 3), parser.lastUsage)
+    }
+
+    @Test
+    fun `several usage frames keep the final occurrence`() {
+        val buffer = Buffer()
+        buffer.writeUtf8(
+            """data: {"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}""" + "\n\n"
+        )
+        buffer.writeUtf8(
+            """data: {"choices":[],"usage":{"prompt_tokens":7,"completion_tokens":8,"total_tokens":15}}""" + "\n\n"
+        )
+        val parser = SseStreamParser()
+        while (parser.nextFrame(buffer) != null) {
+            // Drain.
+        }
+        assertEquals(SseStreamParser.Usage(7, 8, 15), parser.lastUsage)
+    }
+
+    @Test
+    fun `usage missing total_tokens is derived from the parts`() {
+        val buffer = Buffer()
+        buffer.writeUtf8(
+            """data: {"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":7}}""" + "\n\n"
+        )
+        val frame = SseStreamParser().nextFrame(buffer)
+        assertEquals(SseStreamParser.Usage(5, 7, 12), frame!!.usage)
+    }
+
+    @Test
+    fun `empty or null usage object counts as absent`() {
+        val parser = SseStreamParser()
+        val buffer = Buffer()
+        buffer.writeUtf8("""data: {"choices":[],"usage":{}}""" + "\n\n")
+        buffer.writeUtf8("""data: {"choices":[],"usage":null}""" + "\n\n")
+        assertNull(parser.nextFrame(buffer)!!.usage)
+        assertNull(parser.nextFrame(buffer)!!.usage)
+        assertNull(parser.lastUsage)
+    }
+
+    @Test
+    fun `fromJson reads top-level usage of a non-stream response`() {
+        val json = org.json.JSONObject(
+            """{"id":"x","choices":[{"message":{"content":"hi"}}],"usage":""" +
+                """{"prompt_tokens":11,"completion_tokens":22,"total_tokens":33}}"""
+        )
+        assertEquals(SseStreamParser.Usage(11, 22, 33), SseStreamParser.Usage.fromJson(json))
+    }
+
+    @Test
+    fun `fromJson returns null when usage is absent`() {
+        val json = org.json.JSONObject("""{"choices":[{"message":{"content":"hi"}}]}""")
+        assertNull(SseStreamParser.Usage.fromJson(json))
+    }
 }
