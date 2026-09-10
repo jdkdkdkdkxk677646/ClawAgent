@@ -106,6 +106,49 @@ object ProviderCatalog {
             // Ollama exposes its model list at /api/tags, not /v1/models.
             healthEndpoint = "http://10.0.2.2:11434/api/tags",
         ),
+        // ========== 新增预设 (T-104) ==========
+        // SiliconFlow - 硅基流动（OpenAI 兼容）
+        Provider(
+            id = "siliconflow",
+            displayName = "硅基流动 (SiliconFlow)",
+            defaultEndpoint = "https://api.siliconflow.cn/v1/chat/completions",
+            defaultModel = "Qwen/Qwen2.5-7B-Instruct",
+            modelSuggestions = listOf(
+                "Qwen/Qwen2.5-7B-Instruct",
+                "Qwen/Qwen2.5-72B-Instruct",
+                "deepseek-ai/DeepSeek-V3",
+                "THUDM/GLM-4-9B-Chat",
+            ),
+            apiKeyHelpUrl = "https://cloud.siliconflow.cn/account/ak",
+        ),
+        // Kimi 直连（月之暗面，api.moonshot.ai 推理域名，区别于现有 moonshot 代理域名）
+        Provider(
+            id = "kimi",
+            displayName = "Kimi (月之暗面直连)",
+            defaultEndpoint = "https://api.moonshot.ai/v1/chat/completions",
+            defaultModel = "kimi-k2.6",
+            modelSuggestions = listOf(
+                "kimi-k2.6",
+                "moonshot-v1-8k",
+                "moonshot-v1-32k",
+                "moonshot-v1-128k",
+            ),
+            apiKeyHelpUrl = "https://platform.moonshot.cn/console/api-keys",
+        ),
+        // Groq - OpenAI 兼容推理服务
+        Provider(
+            id = "groq",
+            displayName = "Groq",
+            defaultEndpoint = "https://api.groq.com/openai/v1/chat/completions",
+            defaultModel = "llama-3.1-8b-instant",
+            modelSuggestions = listOf(
+                "llama-3.1-8b-instant",
+                "llama-3.1-70b-versatile",
+                "mixtral-8x7b-32768",
+                "gemma2-9b-it",
+            ),
+            apiKeyHelpUrl = "https://console.groq.com/keys",
+        ),
     )
 
     fun findById(id: String?): Provider =

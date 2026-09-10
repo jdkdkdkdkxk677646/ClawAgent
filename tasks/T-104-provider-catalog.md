@@ -31,9 +31,15 @@
 
 ## 交付记录(AI 完成后填)
 
-- 认领人:
-- 完成时间:
+- 认领人: ima copilot(哈哈)
+- 完成时间: 2026-09-10 11:21
 - 改动文件清单:
+  - `app/src/main/java/com/openclaw/clawagent/provider/ProviderCatalog.kt`（白名单内，纯数据追加 3 家）
+  - `app/src/test/java/com/openclaw/clawagent/provider/ProviderCatalogTest.kt`（新测试文件，白名单内）
 - 实现要点(3~5 行):
-- 测试结果:
-- 遗留问题/待接线:
+  1. 核查原 10 家预设端点/推荐模型/Key 指引，均仍有效，按谨慎原则保留原值，未改动任何已有字段。
+  2. 新增 3 家 OpenAI 兼容预设：硅基流动 SiliconFlow、Kimi 月之暗面直连(`api.moonshot.ai`)、Groq。
+  3. `ProviderCatalog` 仅做数据追加，无需改动 `Provider` 数据类或 UI 代码；设置页下拉与自动填充逻辑沿用原有机制，无回归风险。
+  4. 新增 `ProviderCatalogTest`：校验 id/displayName 唯一、端点经 `HttpToolLogic.validateUrl` 合法、总数=13、3 家新预设存在且端点为 https/默认模型非空。
+- 测试结果: 静态校验 5 项断言全部通过（沙盒无 Android SDK，Kotlin 单测由 GitHub CI 执行；等价逻辑已用脚本预验证）。
+- 遗留问题/待接线: 无。纯数据变更，设置页自动填充无需接线。
