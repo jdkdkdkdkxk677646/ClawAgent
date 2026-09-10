@@ -11,14 +11,34 @@ android {
         applicationId = "com.openclaw.clawagent"
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "2.0.1"
+        versionCode = 7
+        versionName = "2.1.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            // Populated only when CI provides the keystore env vars; local
+            // builds and secrets-less CI fall back to the debug signing config
+            // below, so `gradle assembleRelease` never hard-fails.
+            val storePath = System.getenv("KEYSTORE_FILE") ?: ""
+            if (storePath.isNotEmpty()) {
+                storeFile = rootProject.file(storePath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("KEY_ALIAS") ?: ""
+                keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = if (System.getenv("KEYSTORE_FILE").isNullOrEmpty()) {
+                signingConfigs.getByName("debug")
+            } else {
+                signingConfigs.getByName("release")
+            }
         }
     }
 

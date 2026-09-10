@@ -35,7 +35,20 @@
 
 ## 获取 APK
 
-### 方式一:GitHub Actions(推荐)
+### 方式一:Releases 页(正式签名,推荐)
+
+打 tag(`v*`)会自动构建并把签名 APK 挂到 [Releases](https://github.com/jdkdkdkdkxk677646/ClawAgent/releases)。仓库维护者需先在 **Settings → Secrets and variables → Actions** 配置 4 个 secret:
+
+| Secret | 内容 |
+| --- | --- |
+| `KEYSTORE_BASE64` | 签名 keystore(.jks)文件的 base64(`base64 -w0 my.jks`) |
+| `KEYSTORE_PASSWORD` | keystore 密码 |
+| `KEY_ALIAS` | key 别名 |
+| `KEY_PASSWORD` | key 密码 |
+
+> 未配置 secrets 时 Release 仍会构建,但 APK 是 debug 签名(Actions 运行日志会有警告)。
+
+### 方式二:GitHub Actions artifacts
 
 1. Fork 本仓库(或直接手动触发 workflow)
 2. 等 Actions 构建完成
@@ -43,7 +56,7 @@
 
 主仓库每次 push 也会自动构建,Artifacts 保留 30 天。
 
-### 方式二:本地构建
+### 方式三:本地构建
 
 ```bash
 # 需要 Android SDK + JDK 17
@@ -77,6 +90,7 @@ APK 输出路径:`app/build/outputs/apk/debug/app-debug.apk`
 | 流式输出 | 逐字返回;关闭则整段返回 |
 | 系统提示词 | 每次请求自动附加的 system 消息,用于设定人设与规则 |
 | 🦾 Agent 模式 | 允许模型自主多步调用 9 个内置工具(单次最多 15 轮),需模型支持 Function Calling |
+| 工具配置 | 按工具粒度启停(Agent 模式下一行蓝色小字)。被关掉的工具不会出现在模型的工具清单里,也无法被调用——不放心"读剪贴板/发通知"就关掉对应爪子 |
 
 ## 架构:工具箱是怎么接进去的
 
@@ -119,10 +133,10 @@ APK 输出路径:`app/build/outputs/apk/debug/app-debug.apk`
 - [x] **真正的 Agent 化:9 工具爪子集 + 15 轮循环 + 行为指令(v2.0.0)**
 - [x] 多会话管理:分支树 / 长按删除 / 导出(v1.3.0)
 - [x] 分支树稳定性:visibleMessages 改为自活跃分支上溯遍历(修兄弟分支显示错乱)、流式期间拦截分支切换/分叉/删除(v2.0.1)
-- [ ] Agent 工具开关(按工具粒度启停)
+- [x] 工具配置:按工具粒度启停(v2.1.0)
+- [x] 签名 Release 构建 + tag 自动发 Release(v2.1.0,需配置 4 个 secrets)
 - [ ] 提醒持久化(AlarmManager,进程被杀也能触发)
 - [ ] 图片输入支持
-- [ ] 签名 Release 构建 + tag 自动发 Release
 
 ## License
 

@@ -89,6 +89,18 @@ class SecurePrefs(context: Context) {
         get() = plain.getBoolean(KEY_AGENT_MODE, false)
         set(value) = plain.edit().putBoolean(KEY_AGENT_MODE, value).apply()
 
+    /**
+     * Per-tool kill switches: names from AgentToolbox that the user turned
+     * OFF. Empty set = every tool enabled. Checked when building the request
+     * toolset, so a disabled tool is never advertised to the model — and
+     * dispatching into it degrades into "未找到该工具".
+     */
+    var disabledTools: Set<String>
+        get() = plain.getStringSet(KEY_DISABLED_TOOLS, emptySet()) ?: emptySet()
+        set(value) = plain.edit().putStringSet(KEY_DISABLED_TOOLS, value).apply()
+
+    fun isToolEnabled(name: String): Boolean = name !in disabledTools
+
     // ----- API key (encrypted, when available) -----
 
     /** Returns the persisted API key, or "" if unset or encrypted storage failed. */
@@ -133,6 +145,7 @@ class SecurePrefs(context: Context) {
         private const val KEY_CONTEXT_LIMIT = "context_limit"
         private const val KEY_SYSTEM_PROMPT = "system_prompt"
         private const val KEY_AGENT_MODE = "agent_mode"
+        private const val KEY_DISABLED_TOOLS = "disabled_tools"
 
         const val DEFAULT_CONTEXT_LIMIT = 20
 

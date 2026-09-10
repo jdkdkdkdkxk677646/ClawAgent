@@ -53,6 +53,15 @@ class AgentToolbox(private val tools: List<AgentTool>) {
         byName[name]?.execute(arguments)
             ?: "未找到名为 \"$name\" 的工具。可用工具:${byName.keys.joinToString()}"
 
+    /**
+     * A toolbox restricted to the given tool names — the per-tool kill
+     * switches behind Settings → 工具配置. Disabled tools are neither
+     * advertised in `tools` nor dispatchable, so the model can never call
+     * something the user turned off.
+     */
+    fun filtered(enabledNames: Collection<String>): AgentToolbox =
+        AgentToolbox(tools.filter { it.name in enabledNames })
+
     companion object {
 
         /**

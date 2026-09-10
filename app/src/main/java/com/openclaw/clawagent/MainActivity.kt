@@ -280,6 +280,15 @@ class MainActivity : AppCompatActivity() {
      * latest user turn when context memory is off. A configured system prompt
      * (the agent's persona) always leads the request, regardless of limits.
      */
+    /**
+     * The toolbox restricted by the user's per-tool kill switches
+     * (Settings → 工具配置). Used for everything wire-side: the `tools`
+     * array, the agent directive's inventory and dispatch. A tool that is
+     * off is invisible to the model and un-callable even by name.
+     */
+    private fun activeToolbox(): AgentToolbox =
+        toolbox.filtered(toolbox.names.filter { prefs.isToolEnabled(it) })
+
     private fun buildRequestHistory(text: String): List<ChatService.Message> {
         val systemMessages = buildList {
             val persona = prefs.systemPrompt.trim()
@@ -287,7 +296,7 @@ class MainActivity : AppCompatActivity() {
             // Agent mode: tell the model it is an agent and hand it the live
             // toolbox inventory, so it plans multi-step tool work.
             if (prefs.agentMode) {
-                add(ChatService.Message("system", AgentDirective.systemPrompt(toolbox)))
+                add(ChatService.Message("system", AgentDirective.systemPrompt(activeToolbox())))
             }
         }
         if (!prefs.keepContext) {
@@ -314,7 +323,7 @@ class MainActivity : AppCompatActivity() {
         model: String,
     ) {
         val conversation = initialHistory.toMutableList()
-        val toolsJson = if (prefs.agentMode) toolbox.requestJson() else null
+        val toolsJson = if (prefs.agentMode) activeToolbox().requestJson() else null
 
         var round = 0
         while (true) {
@@ -387,7 +396,9 @@ class MainActivity : AppCompatActivity() {
             )
             for (call in calls) {
                 val result = withContext(Dispatchers.Default) {
-                    runCatching { toolbox.execute(call.name, call.arguments) }
+                    // Dispatch through the filtered set: a tool the user
+                    // turned off resolves to "未找到" instead of executing.
+                    runCatching { activeToolbox().execute(call.name, call.arguments) }
                         .getOrElse { "工具执行失败:${it.message}" }
                 }
                 // Bubble shows a short preview; the full result always goes
@@ -565,6 +576,32 @@ class MainActivity : AppCompatActivity() {
         dialogBinding.streamCheckbox.isChecked = prefs.streamOutput
         dialogBinding.systemPromptEdit.setText(prefs.systemPrompt)
         dialogBinding.agentCheckbox.isChecked = prefs.agentMode
+
+        // Per-tool kill switches: summary line + multi-choice dialog over
+        // the toolbox, persisted as a disabled-names set in SecurePrefs.
+        val toolNames = toolbox.names
+        fun renderToolsSummary() {
+            val enabled = toolNames.count { prefs.isToolEnabled(it) }
+            dialogBinding.toolsConfigText.text =
+                "工具配置:已启用 $enabled/${toolNames.size}(点击设置)"
+        }
+        renderToolsSummary()
+        dialogBinding.toolsConfigText.setOnClickListener {
+            val labels = toolNames.map { TOOL_LABELS[it] ?: it }.toTypedArray()
+            val checked = BooleanArray(toolNames.size) { prefs.isToolEnabled(toolNames[it]) }
+            AlertDialog.Builder(this)
+                .setTitle("启用哪些工具")
+                .setMultiChoiceItems(labels, checked) { _, which, isChecked ->
+                    checked[which] = isChecked
+                }
+                .setPositiveButton("保存") { _, _ ->
+                    prefs.disabledTools =
+                        toolNames.filterIndexed { i, _ -> !checked[i] }.toSet()
+                    renderToolsSummary()
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        }
 
         AlertDialog.Builder(this)
             .setTitle("⚙️ 设置")
@@ -863,5 +900,18 @@ class MainActivity : AppCompatActivity() {
         /** Cap on model rounds per user turn in agent mode (tool-call loop). */
         private const val MAX_TOOL_ROUNDS = 15
         private const val RESULT_PREVIEW_CHARS = 300
+
+        /** Friendly labels for the tool-configuration multi-choice dialog. */
+        private val TOOL_LABELS = mapOf(
+            "calculator" to "🧮 计算器",
+            "current_time" to "🕐 实时时钟",
+            "notes" to "📓 持久笔记(Agent 记忆)",
+            "http_get" to "🌐 网页/API 抓取",
+            "device_info" to "🔋 设备信息",
+            "clipboard" to "📋 剪贴板读写",
+            "notify" to "🔔 系统通知",
+            "remind" to "⏰ 定时提醒",
+            "open_url" to "🌍 打开网页",
+        )
     }
 }

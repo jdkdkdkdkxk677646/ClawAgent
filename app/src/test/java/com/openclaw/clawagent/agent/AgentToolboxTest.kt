@@ -1,7 +1,7 @@
 package com.openclaw.clawagent.agent
 
-import org.json.JSONArray
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Files
@@ -60,5 +60,36 @@ class AgentToolboxTest {
         box.names.forEach { name ->
             assertTrue("directive should mention $name", prompt.contains(name))
         }
+    }
+
+    // ── filtered (per-tool kill switches) ─────────────────────────
+
+    @Test
+    fun `filtered keeps only the enabled tools`() {
+        val box = coreToolbox()
+        val reduced = box.filtered(setOf("calculator", "current_time"))
+        assertEquals(listOf("calculator", "current_time"), reduced.names)
+    }
+
+    @Test
+    fun `filtered toolbox hides disabled tools from the wire and dispatch`() {
+        val box = coreToolbox().filtered(listOf("calculator", "notes", "http_get"))
+        // Not advertised to the model...
+        val json = box.requestJson()
+        val names = (0 until json.length()).map {
+            json.getJSONObject(it).getJSONObject("function").getString("name")
+        }
+        assertFalse("disabled tool must not be advertised", names.contains("current_time"))
+        // ...and not dispatchable either.
+        assertTrue(box.execute("current_time", "{}").contains("未找到"))
+        assertEquals("4", box.execute("calculator", """{"expression":"2+2"}"""))
+    }
+
+    @Test
+    fun `filtered directive inventory matches the reduced set`() {
+        val box = coreToolbox().filtered(setOf("notes"))
+        val prompt = AgentDirective.systemPrompt(box)
+        assertTrue(prompt, prompt.contains("notes"))
+        assertFalse(prompt, prompt.contains("http_get"))
     }
 }
