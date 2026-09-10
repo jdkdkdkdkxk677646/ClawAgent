@@ -31,10 +31,11 @@ class ImageAttachmentsTest {
             "data:image/jpeg;base64,Zm9vYmFy",
             ImageAttachments.toDataUrl("image/jpeg", "foobar".toByteArray(Charsets.US_ASCII))
         )
-        // 0xFB 0xFF 0xBF -> "+//+" (exercises the `+` and `/` alphabet chars)
+        // 0xFB 0xFF 0xBF -> +/+/ (exercises the '+' and '/' alphabet chars)
+        // 期望字面量由 python base64.b64encode 机器生成(手算曾两次错位),勿凭记忆修改。
         val bytes = byteArrayOf(0xFB.toByte(), 0xFF.toByte(), 0xBF.toByte())
         assertEquals(
-            "data:image/png;base64,+//+",
+            "data:image/png;base64,+/+/",
             ImageAttachments.toDataUrl("image/png", bytes)
         )
     }
