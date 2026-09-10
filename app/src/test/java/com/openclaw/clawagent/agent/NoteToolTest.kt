@@ -114,6 +114,35 @@ class NoteToolTest {
         assertTrue(out, out.contains("list"))
     }
 
+    // ── search ────────────────────────────────────────────────────
+
+    @Test
+    fun `search matches titles case-insensitively`() {
+        save("Coffee Preferences", "latte")
+        val out = tool.execute("""{"action":"search","query":"coffee"}""")
+        assertTrue(out, out.contains("标题命中"))
+    }
+
+    @Test
+    fun `search matches body content with a snippet`() {
+        save("项目清单", "周三要交季度报表,顺便更新预算表")
+        val out = tool.execute("""{"action":"search","query":"季度报表"}""")
+        assertTrue(out, out.contains("项目清单"))
+        assertTrue(out, out.contains("季度报表"))
+    }
+
+    @Test
+    fun `search with no hits reports gracefully`() {
+        save("笔记A", "hello")
+        val out = tool.execute("""{"action":"search","query":"不存在的东西"}""")
+        assertTrue(out, out.contains("没有包含"))
+    }
+
+    @Test
+    fun `search requires a query`() {
+        assertTrue(tool.execute("""{"action":"search"}""").startsWith("错误"))
+    }
+
     // ── slug safety ───────────────────────────────────────────────
 
     @Test

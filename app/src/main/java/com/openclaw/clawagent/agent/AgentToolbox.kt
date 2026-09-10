@@ -65,8 +65,9 @@ class AgentToolbox(private val tools: List<AgentTool>) {
     companion object {
 
         /**
-         * Framework-free toolset: exact math, clock, persistent notes and
-         * HTTP fetch. [notesDir] must be provided (tests pass a temp dir).
+         * Framework-free toolset: math, clock, notes (+search), web search,
+         * http fetch and planning. [notesDir] must be provided (tests pass a
+         * temp dir).
          */
         fun core(notesDir: File): AgentToolbox = AgentToolbox(
             listOf(
@@ -74,6 +75,8 @@ class AgentToolbox(private val tools: List<AgentTool>) {
                 CurrentTimeTool(),
                 NoteTool(notesDir),
                 HttpRequestTool(),
+                WebSearchTool(),
+                PlanTool(),
             )
         )
 
@@ -84,6 +87,8 @@ class AgentToolbox(private val tools: List<AgentTool>) {
                 CurrentTimeTool(),
                 NoteTool(File(context.filesDir, "agent_notes")),
                 HttpRequestTool(),
+                WebSearchTool(),
+                PlanTool(),
                 DeviceInfoTool(context.applicationContext),
                 ClipboardTool(context.applicationContext),
                 NotificationTool(context.applicationContext),

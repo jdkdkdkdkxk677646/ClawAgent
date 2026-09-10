@@ -907,6 +907,8 @@ class MainActivity : AppCompatActivity() {
             "current_time" to "🕐 实时时钟",
             "notes" to "📓 持久笔记(Agent 记忆)",
             "http_get" to "🌐 网页/API 抓取",
+            "web_search" to "🔍 联网搜索",
+            "task_plan" to "📋 任务规划与进度",
             "device_info" to "🔋 设备信息",
             "clipboard" to "📋 剪贴板读写",
             "notify" to "🔔 系统通知",

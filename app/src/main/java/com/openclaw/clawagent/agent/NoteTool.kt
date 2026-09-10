@@ -18,15 +18,16 @@ class NoteTool(private val baseDir: File) : AgentTool {
     override val name = "notes"
     override val description =
         "读写 Agent 的持久笔记本(跨会话保存)。支持操作:save 保存/更新笔记、read 读取、" +
-            "list 列出全部笔记、delete 删除。当用户要求记住某事、之后要引用、或询问之前记过的内容时使用。" +
-            "参数:action(save/read/list/delete)、title(除 list 外必填)、content(仅 save 需要)。"
+            "list 列出全部笔记、search 按关键词搜索笔记内容、delete 删除。" +
+            "当用户透露稳定信息(偏好、项目、习惯)时主动 save;用户提到\"之前/上次/我记过的\"时先 search。" +
+            "参数:action(save/read/list/search/delete)、title(除 list/search 外必填)、content(仅 save 需要)、query(仅 search 需要)。"
     override val parametersJson = """
         {
           "type": "object",
           "properties": {
             "action": {
               "type": "string",
-              "enum": ["save", "read", "list", "delete"],
+              "enum": ["save", "read", "list", "search", "delete"],
               "description": "要执行的笔记本操作"
             },
             "title": {
@@ -36,6 +37,10 @@ class NoteTool(private val baseDir: File) : AgentTool {
             "content": {
               "type": "string",
               "description": "笔记内容(save 时必填,支持 markdown)"
+            },
+            "query": {
+              "type": "string",
+              "description": "搜索关键词(action=search 时必填,匹配标题或正文)"
             }
           },
           "required": ["action"]
@@ -54,8 +59,9 @@ class NoteTool(private val baseDir: File) : AgentTool {
                 "save" -> save(args.optString("title", ""), args.optString("content", ""))
                 "read" -> read(args.optString("title", ""))
                 "list" -> list()
+                "search" -> search(args.optString("query", ""))
                 "delete" -> delete(args.optString("title", ""))
-                else -> "错误:未知 action \"$action\",支持 save / read / list / delete。"
+                else -> "错误:未知 action \"$action\",支持 save / read / list / search / delete。"
             }
         } catch (e: Exception) {
             "笔记操作失败:${e.message ?: e.javaClass.simpleName}"
@@ -91,6 +97,40 @@ class NoteTool(private val baseDir: File) : AgentTool {
         val titles = listTitles()
         if (titles.isEmpty()) return "笔记本是空的。用 action=save 保存第一条笔记。"
         return "共 ${titles.size} 条笔记:\n" + titles.joinToString("\n") { "- $it" }
+    }
+
+    /**
+     * Keyword lookup across titles and bodies (case-insensitive contains).
+     * The agent's stand-in for semantic memory recall: recall first what is
+     * verbatim, and the model does the fuzzy matching on top.
+     */
+    private fun search(query: String): String {
+        if (query.isBlank()) return "错误:search 需要 query 参数。"
+        ensureDir()
+        val files = baseDir.listFiles { f -> f.isFile && f.extension == "md" }
+            ?.sortedBy { it.nameWithoutExtension }
+            ?: return "笔记本是空的。"
+        val hits = files.mapNotNull { f ->
+            val title = f.nameWithoutExtension
+            val content = f.readText()
+            val idx = content.indexOf(query, ignoreCase = true)
+            when {
+                title.contains(query, ignoreCase = true) ->
+                    "- 「$title」(标题命中)"
+
+                idx >= 0 -> {
+                    val start = (idx - 40).coerceAtLeast(0)
+                    val end = (idx + query.length + 60).coerceAtMost(content.length)
+                    val ellipsisStart = if (start > 0) "…" else ""
+                    val ellipsisEnd = if (end < content.length) "…" else ""
+                    "- 「$title」:${ellipsisStart}${content.substring(start, end).replace("\n", " ")}$ellipsisEnd"
+                }
+
+                else -> null
+            }
+        }
+        return if (hits.isEmpty()) "笔记本中没有包含「$query」的笔记。"
+        else "找到 ${hits.size} 条:\n" + hits.joinToString("\n")
     }
 
     private fun delete(title: String): String {

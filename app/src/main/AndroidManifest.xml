@@ -34,5 +34,10 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize">
         </activity>
+
+        <!-- Agent 的 remind 工具:AlarmManager 触发后由它发通知 -->
+        <receiver
+            android:name=".agent.ReminderReceiver"
+            android:exported="false" />
     </application>
 </manifest>

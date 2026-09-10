@@ -1,10 +1,12 @@
 package com.openclaw.clawagent.agent
 
 import android.Manifest
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -13,8 +15,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.os.StatFs
 import android.app.ActivityManager
 import com.openclaw.clawagent.MainActivity
@@ -336,18 +336,20 @@ class NotificationTool(private val context: Context) : AgentTool {
 }
 
 /**
- * Schedules a one-shot reminder: after [delaySeconds] the agent posts a
- * notification. Implemented with a main-looper Handler — reliable while the
- * app process is alive; the tool says so honestly in its result.
+ * Schedules a one-shot reminder via AlarmManager (`setAndAllowWhileIdle`:
+ * fires within a few minutes even in Doze, no special permission needed).
+ * Delivery is a broadcast to [ReminderReceiver], which posts the
+ * notification — so the alarm fires even if the app process was killed in
+ * the meantime. Two honest limits, stated in the tool's result: reboots
+ * clear alarms (persisted re-scheduling needs a BootReceiver), and exact
+ * timing is ± a few minutes.
  */
 class ReminderTool(private val context: Context) : AgentTool {
 
-    private val handler = Handler(Looper.getMainLooper())
-
     override val name = "remind"
     override val description =
-        "设置一个延时提醒:N 秒后发送系统通知。参数:delay_seconds(1~86400)、message(提醒内容)。" +
-            "适合\"10 分钟后提醒我\"这类请求。"
+        "设置一个延时提醒:N 秒后发送系统通知(基于系统闹钟,应用进程被杀也能触发,精确到分钟级)。" +
+            "参数:delay_seconds(1~86400)、message(提醒内容)。适合\"10 分钟后提醒我\"这类请求。"
     override val parametersJson = """
         {
           "type": "object",
@@ -379,13 +381,24 @@ class ReminderTool(private val context: Context) : AgentTool {
         if (message.isEmpty()) return "错误:缺少 message 参数。"
 
         return try {
-            val delayMs = seconds * 1000L
-            handler.postDelayed({
-                runCatching { AgentNotifications.post(context, "⏰ 提醒", message) }
-            }, delayMs)
+            val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+                ?: return "错误:闹钟服务不可用。"
+            val requestCode = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
+            val pi = PendingIntent.getBroadcast(
+                context,
+                requestCode,
+                Intent(context, ReminderReceiver::class.java)
+                    .putExtra(ReminderReceiver.EXTRA_MESSAGE, message),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            am.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                System.currentTimeMillis() + seconds * 1000L,
+                pi,
+            )
             val human = if (seconds % 60 == 0) "${seconds / 60} 分钟" else "$seconds 秒"
-            "已设置提醒:${human}后提醒「$message」。" +
-                "(提醒在应用进程存活期间有效;若应用被系统完全杀掉则不会触发)"
+            "已设置提醒:${human}后提醒「$message」(系统级闹钟,应用被杀也会响;" +
+                "重启手机后未触发的提醒会丢失)"
         } catch (e: Exception) {
             "设置提醒失败:${e.message}"
         }
@@ -393,5 +406,24 @@ class ReminderTool(private val context: Context) : AgentTool {
 
     companion object {
         const val MAX_SECONDS = 86_400
+    }
+}
+
+/**
+ * Delivers a scheduled reminder: receives the alarm broadcast and posts the
+ * notification. Runs outside any activity — must not touch UI, only
+ * [AgentNotifications].
+ */
+class ReminderReceiver : BroadcastReceiver() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        val message = intent.getStringExtra(EXTRA_MESSAGE)?.take(400) ?: return
+        runCatching {
+            AgentNotifications.post(context.applicationContext, "⏰ 提醒", message)
+        }
+    }
+
+    companion object {
+        const val EXTRA_MESSAGE = "claw_remind_message"
     }
 }
