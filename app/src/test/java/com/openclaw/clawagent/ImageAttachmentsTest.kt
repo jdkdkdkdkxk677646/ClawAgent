@@ -61,7 +61,7 @@ class ImageAttachmentsTest {
 
     @Test
     fun `toDataUrl formats data-mime-base64 prefix`() {
-        val url = ImageAttachments.toDataUrl("image/webp", byteArrayOf(0x89))
+        val url = ImageAttachments.toDataUrl("image/webp", byteArrayOf(0x89.toByte()))
         assertTrue(url.startsWith("data:image/webp;base64,"))
     }
 
