@@ -726,12 +726,16 @@ class MainActivity : AppCompatActivity() {
             val target = branches[position]
             if (target.parentId == null) {
                 Toast.makeText(this, "根分支不可删除", Toast.LENGTH_SHORT).show()
+            } else if (blockIfSending()) {
+                // Busy: toast already shown. Gate here rather than inside the
+                // confirm dialog so the user never opens a dialog that can't
+                // be acted on. (The dialog is modal — isSending can't flip
+                // between opening it and tapping 删除.)
             } else {
                 AlertDialog.Builder(this)
                     .setTitle("删除分支")
                     .setMessage("删除「${target.name}」？其子分支将并入上级分支。")
                     .setPositiveButton("删除") { _, _ ->
-                        if (blockIfSending()) return@setPositiveButton
                         tree.deleteBranch(target.id)
                         syncMessagesFromTree()
                         updateBranchChip()
