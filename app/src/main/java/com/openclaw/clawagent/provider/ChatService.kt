@@ -104,7 +104,7 @@ class ChatService(
     }.flowOn(Dispatchers.IO)
 
     /** OpenAI wire shape for one conversation message. */
-    private fun serializeMessage(msg: Message): JSONObject = JSONObject().apply {
+    internal fun serializeMessage(msg: Message): JSONObject = JSONObject().apply {
         put("role", msg.role)
         if (msg.role == "tool") {
             // Tool result message: content carries the raw tool output.

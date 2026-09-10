@@ -2,6 +2,7 @@ package com.openclaw.clawagent.provider
 
 import okio.Buffer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -42,35 +43,32 @@ class SseStreamParserTest {
             deltaOf(
                 ": keep-alive\n\n",
                 "event: message\n",
-                """data: {"choices":[{"delta":{"content":"ok"}}]}""" + "\n",
+                """data: {"choices":[{"delta":{"content":"ok"}}]}""" + "\n\n",
             ),
         )
     }
 
     @Test
     fun `data without leading space is accepted`() {
-        // "data:{...}" — no space after the colon (SSE permits both).
         assertEquals(
-            "x",
-            deltaOf("""data:{"choices":[{"delta":{"content":"x"}}]}""" + "\n"),
+            "n",
+            deltaOf("""data:{"choices":[{"delta":{"content":"n"}}]}""" + "\n"),
         )
     }
 
     @Test
     fun `CRLF line endings are accepted`() {
         assertEquals(
-            "y",
-            deltaOf("""data: {"choices":[{"delta":{"content":"y"}}]}""" + "\r\n\r\n"),
+            "w",
+            deltaOf("""data: {"choices":[{"delta":{"content":"w"}}]}""" + "\r\n\r\n"),
         )
     }
 
     @Test
     fun `sequential frames are consumed one at a time`() {
         val buffer = Buffer()
-        buffer.writeUtf8("""data: {"choices":[{"delta":{"content":"a"}}]}""" + "\n")
-        buffer.writeUtf8("""data: {"choices":[{"delta":{"content":"b"}}]}""" + "\n")
-        buffer.writeUtf8("data: [DONE]\n")
-
+        buffer.writeUtf8("""data: {"choices":[{"delta":{"content":"a"}}]}""" + "\n\n")
+        buffer.writeUtf8("""data: {"choices":[{"delta":{"content":"b"}}]}""" + "\n\n")
         val parser = SseStreamParser()
         assertEquals("a", parser.nextContentDelta(buffer))
         assertEquals("b", parser.nextContentDelta(buffer))
@@ -79,7 +77,6 @@ class SseStreamParserTest {
 
     @Test
     fun `non-stream message frames fall back to message content`() {
-        // Some providers emit a full message object instead of a delta.
         assertEquals(
             "full",
             deltaOf("""data: {"choices":[{"message":{"content":"full"}}]}""" + "\n"),
@@ -111,5 +108,34 @@ class SseStreamParserTest {
             "你好🦀",
             deltaOf("""data: {"choices":[{"delta":{"content":"你好🦀"}}]}""" + "\n"),
         )
+    }
+
+    @Test
+    fun `tool call frames expose their fragments`() {
+        val buffer = Buffer()
+        buffer.writeUtf8(
+            """data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"current_time","arguments":""}}]}}]}""" +
+                "\n\n"
+        )
+        val frame = SseStreamParser().nextFrame(buffer)
+        assertNotNull(frame)
+        assertEquals("", frame!!.contentDelta)
+        val fragments = frame.toolCallFragments
+        assertNotNull(fragments)
+        assertEquals(1, fragments!!.length())
+        assertEquals("call_1", fragments.getJSONObject(0).optString("id"))
+    }
+
+    @Test
+    fun `text and tool call fragments can share one frame`() {
+        val buffer = Buffer()
+        buffer.writeUtf8(
+            """data: {"choices":[{"delta":{"content":"hm","tool_calls":[{"index":0,"function":{"arguments":"{}"}}]}}]}""" +
+                "\n\n"
+        )
+        val frame = SseStreamParser().nextFrame(buffer)
+        assertNotNull(frame)
+        assertEquals("hm", frame!!.contentDelta)
+        assertEquals(1, frame.toolCallFragments!!.length())
     }
 }

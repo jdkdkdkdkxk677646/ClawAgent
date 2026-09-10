@@ -48,24 +48,25 @@ class ConversationTree {
      * point and appending each branch's own messages.
      */
     fun visibleMessages(): List<BranchMessage> {
-        // Build the chain from root → active by repeatedly following
-        // parentId. If the chain is broken (a parent's id is missing),
-        // we just stop early — the data is still useful.
-        val chainToActive = ArrayList<ConversationBranch>()
-        val root = branches.values.firstOrNull { it.parentId == null } ?: return emptyList()
-        chainToActive.add(root)
-        var cursor: ConversationBranch = root
-        while (cursor.id != activeBranchId) {
-            val next = branches.values.firstOrNull { it.parentId == cursor.id }
-                ?: break
-            chainToActive.add(next)
-            cursor = next
+        // Walk UP from the active branch to the root, then reverse. Walking
+        // down from the root (the old approach) followed the *first* child at
+        // every level, so when the active branch was a later sibling the walk
+        // veered off into the wrong branch and showed its messages instead.
+        // The `seen` set guards against corrupt persisted data where parent
+        // ids form a cycle (an up-walk could otherwise loop forever).
+        val fromActive = ArrayList<ConversationBranch>()
+        val seen = HashSet<String>()
+        var cursor: ConversationBranch? = branches[activeBranchId] ?: return emptyList()
+        while (cursor != null && seen.add(cursor.id)) {
+            fromActive.add(cursor)
+            cursor = cursor.parentId?.let { branches[it] }
         }
+        val rootToActive = fromActive.asReversed()
 
         // Roll up the effective list, slicing at each fork point.
-        var effective = root.messages.toList()
-        for (i in 1 until chainToActive.size) {
-            val branch = chainToActive[i]
+        var effective = rootToActive.first().messages.toList()
+        for (i in 1 until rootToActive.size) {
+            val branch = rootToActive[i]
             effective = effective.take(branch.forkAtMessageIndex)
             effective = effective + branch.messages
         }

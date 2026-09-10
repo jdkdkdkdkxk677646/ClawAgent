@@ -167,4 +167,41 @@ class ConversationTreeTest {
         assertEquals("B", fresh.activeBranch.name)
         assertEquals("beta", fresh.visibleMessages().last().content)
     }
+
+    @Test
+    fun `active sibling that is not the first child shows its own messages`() {
+        // Regression: the old root→active walk picked the *first* child at
+        // every level, so being on a later sibling showed the wrong branch.
+        val tree = ConversationTree()
+        tree.appendMessage("user", "m1")
+        tree.appendMessage("assistant", "m2")
+        tree.forkAt(messageIndex = 1)              // first child of root
+        tree.appendMessage("user", "first-own")
+        val rootId = tree.allBranches.first { it.parentId == null }.id
+        tree.switchTo(rootId)                       // back on the root
+        tree.forkAt(messageIndex = 2)              // second child, now active
+        tree.appendMessage("user", "second-own")
+
+        val visible = tree.visibleMessages().map { it.content }
+        assertEquals(listOf("m1", "m2", "second-own"), visible)
+    }
+
+    @Test
+    fun `visibleMessages survives a parent-id cycle in persisted data`() {
+        // Corrupt data guard: the up-walk must terminate even if branch
+        // parents form a loop.
+        val tree = ConversationTree()
+        tree.appendMessage("user", "m1")
+        val child = tree.forkAt(messageIndex = 1, name = "loop-child")
+        tree.appendMessage("user", "child-own")
+        // Forge a cycle: root's parent points at the child.
+        val root = tree.allBranches.first { it.parentId == null }
+        val forged = root.copy(parentId = child.id)
+        tree.replaceAll(listOf(forged, child), child.id)
+
+        val visible = tree.visibleMessages().map { it.content }
+        // Chain: child (active) → root → (cycle detected, stop).
+        // Effective = root.take(child.forkAtMessageIndex) + child's own.
+        assertEquals(listOf("m1", "child-own"), visible)
+    }
 }

@@ -590,7 +590,21 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    /**
+     * Branch mutations (switch / fork / new / delete) while a reply is
+     * streaming would rebuild the message mirror and detach the live
+     * placeholder bubble — its notifyItemChanged index would go stale and
+     * the finally-block would append the reply to the wrong branch. Block
+     * them until the stream ends. Returns true (with a toast) when busy.
+     */
+    private fun blockIfSending(): Boolean {
+        if (!isSending) return false
+        Toast.makeText(this, "生成中,请先停止再切换或新建分支", Toast.LENGTH_SHORT).show()
+        return true
+    }
+
     private fun startNewChat() {
+        if (blockIfSending()) return
         // Open a new branch off the current active one, inheriting zero
         // messages — i.e. a clean slate while preserving the old thread.
         // If the active branch is already empty, we just no-op rather than
@@ -699,7 +713,7 @@ class MainActivity : AppCompatActivity() {
 
         listView.setOnItemClickListener { _, _, position, _ ->
             val target = branches[position]
-            if (target.id != tree.activeBranchId) {
+            if (target.id != tree.activeBranchId && !blockIfSending()) {
                 tree.switchTo(target.id)
                 syncMessagesFromTree()
                 updateBranchChip()
@@ -717,6 +731,7 @@ class MainActivity : AppCompatActivity() {
                     .setTitle("删除分支")
                     .setMessage("删除「${target.name}」？其子分支将并入上级分支。")
                     .setPositiveButton("删除") { _, _ ->
+                        if (blockIfSending()) return@setPositiveButton
                         tree.deleteBranch(target.id)
                         syncMessagesFromTree()
                         updateBranchChip()
@@ -766,7 +781,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle("消息操作")
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> forkAt(position)
+                    0 -> if (!blockIfSending()) forkAt(position)
                     1 -> { /* copy is handled by adapter default */ }
                 }
             }
