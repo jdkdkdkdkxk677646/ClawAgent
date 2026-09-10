@@ -164,7 +164,7 @@ class MainActivity : AppCompatActivity() {
             SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ".jpg"
         val file = File(dir, name)
         val uri = try {
-            FileProvider.getUriForFile(this, "${applicationId}.fileprovider", file)
+            FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
         } catch (e: Exception) {
             Toast.makeText(this, "无法启动相机:${e.message}", Toast.LENGTH_SHORT).show()
             return
