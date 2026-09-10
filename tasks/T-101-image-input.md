@@ -43,9 +43,13 @@ Claw Agent 是 OpenAI 兼容 `/v1/chat/completions` 协议的 Android 聊天端�
 
 ## 交付记录(AI 完成后填)
 
-- 认领人:
-- 完成时间:
-- 改动文件清单:
+- 认领人:ima copilot(哈哈)
+- 完成时间:2026-09-10 10:30
+- 改动文件清单:`provider/ChatService.kt`、`MainActivity.kt`、`res/layout/activity_main.xml`、`provider/ChatServiceTest.kt`、`app/build.gradle.kts`
 - 实现要点(3~5 行):
-- 测试结果:
-- 遗留问题/待接线:
+  1. `Message.images` 非空时 `serializeMessage` 输出 OpenAI 多模态数组(text 段 + 每图一个 image_url 段);为空时输出与旧版逐字节一致;tool 消息强制忽略 images。
+  2. Photo Picker(`PickVisualMedia`)选图,解码后 >4MB 拒绝;mime 取自 ContentResolver,缺省 image/jpeg;`Base64.NO_WRAP` 拼 data URL;上限 3 张。
+  3. 附件按钮两态着色(蓝=空/琥珀=已暂存) + contentDescription 报数。
+  4. 会话树只存 `[图片 xN]` 文本标记(历史气泡可见),图片字节不落存储;`buildRequestHistory` 把 images 挂到最后一条 user 消息。
+- 测试结果:CI 全绿(6271147f);新增 3 例 wire 格式断言(数组结构/key 名钉死/空图兼容),现有测试零破坏。
+- 遗留问题/待接线:无。备注:维护者修订——白名单追加 `app/build.gradle.kts`(仅新增 androidx.activity 1.8.2 依赖,PickVisualMedia 需要 activity 1.7+)。
