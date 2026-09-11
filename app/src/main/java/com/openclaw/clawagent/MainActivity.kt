@@ -25,6 +25,7 @@ import com.openclaw.clawagent.agent.AgentDirective
 import com.openclaw.clawagent.agent.AgentEvent
 import com.openclaw.clawagent.agent.AgentLoop
 import com.openclaw.clawagent.agent.AgentRequest
+import com.openclaw.clawagent.agent.AgentToolbox
 import com.openclaw.clawagent.agent.AgentWiring
 import com.openclaw.clawagent.conversation.BranchMessage
 import com.openclaw.clawagent.conversation.ConversationBranch
