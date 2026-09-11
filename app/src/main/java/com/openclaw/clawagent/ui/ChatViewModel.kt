@@ -290,7 +290,7 @@ class ChatViewModel(
         when (event) {
             is AgentEvent.Delta -> {
                 assistantMsg.content += event.text
-                notifyChanged()
+                notifyChanged(assistantMsg)
             }
             is AgentEvent.ToolCalls -> {
                 if (assistantMsg.content.isNotEmpty() && !assistantMsg.content.endsWith("\n")) {
@@ -299,11 +299,11 @@ class ChatViewModel(
                 event.calls.forEach { call ->
                     assistantMsg.content += "🔧 ${call.name}(${call.arguments})\n"
                 }
-                notifyChanged()
+                notifyChanged(assistantMsg)
             }
             is AgentEvent.ToolResult -> {
                 assistantMsg.content += "↳ " + event.preview + "\n"
-                notifyChanged()
+                notifyChanged(assistantMsg)
             }
             is AgentEvent.Usage -> {
                 // 台账已在 ChatService 内记录;这里刷新 UI 展示。
@@ -311,7 +311,7 @@ class ChatViewModel(
             }
             is AgentEvent.RoundLimitReached -> {
                 assistantMsg.content += "\n\n⚠️ 已连续调用工具 ${event.rounds} 轮,为避免死循环已停止。"
-                notifyChanged()
+                notifyChanged(assistantMsg)
             }
             is AgentEvent.Error -> {
                 assistantMsg.content = if (assistantMsg.content.isEmpty()) {
@@ -319,7 +319,7 @@ class ChatViewModel(
                 } else {
                     "${assistantMsg.content}\n\n⚠️ ${event.message}"
                 }
-                notifyChanged()
+                notifyChanged(assistantMsg)
             }
             AgentEvent.Done -> Unit
         }
@@ -453,7 +453,7 @@ class ChatViewModel(
             }
             for (i in 1..reply.length) {
                 msg.content = reply.substring(0, i)
-                notifyChanged()
+                notifyChanged(msg)
                 kotlinx.coroutines.delay(15)
             }
             tree.activeBranch.messages.add(BranchMessage("assistant", reply))
@@ -473,10 +473,19 @@ class ChatViewModel(
         )
     }
 
-    private fun notifyChanged() {
-        _state.value = _state.value.copy(
-            messages = _state.value.messages.map { ChatMessage(it.role, it.content) }
-        )
+    private fun notifyChanged(streaming: ChatMessage? = null) {
+        // 流式中的气泡是活对象(assistantMsg/demo msg),而 state 列表里存的
+        // 是它的旧快照副本——必须用活对象的最新内容重建尾条,否则 UI 永远
+        // 显示空串(DiffUtil 快照与活引用的两难,这里靠显式重建解决)。
+        val s = _state.value
+        val msgs = if (streaming != null && s.messages.isNotEmpty()) {
+            s.messages.toMutableList().apply {
+                set(size - 1, ChatMessage(streaming.role, streaming.content))
+            }
+        } else {
+            s.messages
+        }
+        _state.value = s.copy(messages = msgs.map { ChatMessage(it.role, it.content) })
     }
 
     private fun syncMessages() {
