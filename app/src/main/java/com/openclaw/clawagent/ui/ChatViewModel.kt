@@ -20,6 +20,8 @@ import com.openclaw.clawagent.conversation.ConversationTree
 import com.openclaw.clawagent.provider.ChatService
 import com.openclaw.clawagent.provider.ProviderCatalog
 import com.openclaw.clawagent.provider.SecurePrefs
+import com.openclaw.clawagent.task.AgentTaskService
+import com.openclaw.clawagent.task.ChatRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -48,9 +50,13 @@ data class ChatUiState(
     val todayUsage: String = "",
     /** MCP 远程服务器状态(v4.2):空=未配置,其余为连接结果一行话。 */
     val mcpStatus: String = "",
+    /** 发送栏的后台执行 toggle(v4.3):开着→发送即移交前台服务。 */
+    val backgroundTask: Boolean = false,
+    /** 已有任务在后台跑(期间禁止发送,避免两路同时写会话树)。 */
+    val backgroundTaskRunning: Boolean = false,
 ) {
     val showWelcome: Boolean get() = messages.isEmpty()
-    val canSend: Boolean get() = !isSending && !isLoading
+    val canSend: Boolean get() = !isSending && !isLoading && !backgroundTaskRunning
 }
 
 data class BranchUi(val id: String, val name: String, val messageCount: Int, val isActive: Boolean)
@@ -66,6 +72,8 @@ sealed class ChatIntent {
     data class SetRole(val roleKey: String) : ChatIntent()
     data object ClearStagedImages : ChatIntent()
     data class CopyAt(val position: Int) : ChatIntent()
+    data object ToggleBackground : ChatIntent()
+    data object ReloadFromRepository : ChatIntent()
 }
 
 /** 一次性副作用,由 Activity 消费(Toast/选择器/剪贴板/分享)。 */
@@ -89,7 +97,9 @@ class ChatViewModel(
 
     private val toolbox: AgentToolbox = AgentWiring.forAndroid(appContext)
 
-    private val tree = ConversationTree()
+    // v4.3:树的所有权在 ChatRepository(进程单例)——后台任务 Service 与本 VM
+    // 共享同一个对象,Service 完成后 VM 回前台 syncMessages 即见结果。
+    private val tree get() = com.openclaw.clawagent.task.ChatRepository.tree
 
     private val _state = MutableStateFlow(
         ChatUiState(
@@ -183,6 +193,17 @@ class ChatViewModel(
                 publish()
             }
             is ChatIntent.CopyAt -> copyAt(intent.position)
+            ChatIntent.ToggleBackground -> {
+                _state.value = _state.value.copy(backgroundTask = !_state.value.backgroundTask)
+            }
+            ChatIntent.ReloadFromRepository -> {
+                syncMessages()
+                _state.value = _state.value.copy(
+                    backgroundTaskRunning = ChatRepository.backgroundTaskRunning,
+                    todayUsage = usageTracker.todaySummary(),
+                )
+                publish()
+            }
         }
     }
 
@@ -291,6 +312,37 @@ class ChatViewModel(
         if (model.isEmpty()) {
             assistantMsg.content = "⚠️ 还没有配置模型名称。请打开设置,在「模型」一栏填写后再试。"
             notifyChanged()
+            return
+        }
+
+        // v4.3:后台执行——回合整体移交给前台服务,离开屏幕也继续跑。
+        if (_state.value.backgroundTask) {
+            if (ChatRepository.backgroundTaskRunning) {
+                _effects.trySend(ChatEffect.Toast("已有后台任务在跑,先等它完成"))
+                return
+            }
+            val request = AgentRequest(
+                endpoint = prefs.endpoint,
+                apiKey = apiKey,
+                model = model,
+                history = buildRequestHistory(text, outgoingImages),
+                stream = false, // 无流式 UI,整段返回更省电
+                tools = if (prefs.agentMode) activeToolbox().requestJson() else null,
+                maxRounds = MAX_TOOL_ROUNDS,
+                toolset = activeToolbox(),
+            )
+            val ok = AgentTaskService.enqueue(
+                appContext,
+                AgentTaskService.PendingTask(request, displayed, tree.activeBranchId)
+            )
+            if (ok) {
+                ChatRepository.backgroundTaskRunning = true
+                _state.value = _state.value.copy(backgroundTaskRunning = true)
+                publish()
+                _effects.trySend(ChatEffect.Toast("🦀 已移交后台,完成后通知你"))
+            } else {
+                _effects.trySend(ChatEffect.Toast("无法启动后台服务"))
+            }
             return
         }
 
@@ -565,22 +617,19 @@ class ChatViewModel(
         private const val MAX_TOOL_ROUNDS = 15
         private const val MAX_IMAGE_BYTES = 4 * 1024 * 1024
 
-        /** 手工装配(无 DI 框架);依赖图短,Phase 4 若引入 Hilt 再迁。 */
+        /** 手工装配(无 DI 框架);依赖图短。数据所有权归 ChatRepository。 */
         fun factory(activity: androidx.activity.ComponentActivity) =
             androidx.lifecycle.viewmodel.viewModelFactory {
                 initializer {
-                    val prefs = SecurePrefs(activity)
-                    val storage = ConversationStorage(activity)
-                    val usageTracker =
-                        com.openclaw.clawagent.provider.UsageTracker(prefs.usageStore())
-                    val chatService = ChatService(usageTracker = usageTracker)
+                    com.openclaw.clawagent.task.ChatRepository.init(activity)
+                    val repo = com.openclaw.clawagent.task.ChatRepository
                     ChatViewModel(
                         appContext = activity.applicationContext,
-                        prefs = prefs,
-                        storage = storage,
-                        chatService = chatService,
-                        agentLoop = AgentLoop(chatService),
-                        usageTracker = usageTracker,
+                        prefs = repo.prefs,
+                        storage = repo.storage,
+                        chatService = repo.chatService,
+                        agentLoop = repo.agentLoop,
+                        usageTracker = repo.usageTracker,
                     )
                 }
             }

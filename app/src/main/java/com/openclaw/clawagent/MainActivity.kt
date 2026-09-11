@@ -167,6 +167,12 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    override fun onStart() {
+        super.onStart()
+        // 回前台:后台任务(Service)可能已写入新消息,重读共享会话树。
+        vm.onIntent(ChatIntent.ReloadFromRepository)
+    }
+
     private fun showForkMenu(position: Int) {
         val items = arrayOf("🌿 从这里重开", "📋 复制")
         showItemMenu(items, position)

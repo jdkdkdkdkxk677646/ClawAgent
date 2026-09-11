@@ -150,6 +150,7 @@ v4.0 完成了绞杀式重写——UI 换 Compose(MVI 单向数据流),领域层
 - [x] **v4.0 重写三阶段:纯 JVM 领域层(:core-agent/:core-tools)、Room 数据层(:data,自动迁移)、Compose UI + MVI(4.0.0)**
 - [x] **v4.1 精细化:存储层全 suspend(Room 事务执行器,主线程零 SQLite)、设置对话框迁 Compose、今日 token 用量 UI、消息列表 DiffUtil 增量刷新**
 - [x] **MCP 接入(v4.2-alpha):Streamable HTTP 客户端,远程 MCP 服务器的工具以 `mcp_` 前缀挂入爪子集(受工具开关约束),设置页可配端点与 Bearer Token**
+- [x] **Agent 后台任务(v4.3-alpha):发送栏 ☕→🚀 切换后台执行,回合跑在前台服务里,锁屏/切走不中断,完成推送通知,结果自动写回会话**
 - [ ] 消息列表分页(超长会话)
 - [ ] 表格渲染升级为横向滚动视图的 Compose 原生版
 - [ ] 图片输入支持拍照直拍的 Compose 内整合

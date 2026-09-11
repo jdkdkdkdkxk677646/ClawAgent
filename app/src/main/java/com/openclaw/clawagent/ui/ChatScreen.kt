@@ -114,6 +114,7 @@ fun ChatScreen(
                 onStop = { onIntent(ChatIntent.StopGeneration) },
                 onAttachClick = onAttachClick,
                 onAttachLongClick = onAttachLongClick,
+                onToggleBackground = { onIntent(ChatIntent.ToggleBackground) },
             )
         }
     }
@@ -224,6 +225,7 @@ private fun InputBar(
     onStop: () -> Unit,
     onAttachClick: () -> Unit,
     onAttachLongClick: () -> Unit,
+    onToggleBackground: () -> Unit,
 ) {
     var text by remember { mutableStateOf("") }
 
@@ -242,6 +244,15 @@ private fun InputBar(
                 .padding(8.dp),
             text = if (state.stagedImageCount > 0) "📷${state.stagedImageCount}" else "📷",
             color = if (state.stagedImageCount > 0) Color(0xFFfbbf24) else ClawColors.Accent,
+        )
+        // v4.3:后台执行 toggle——开着时发送即移交前台服务,锁屏不断。
+        Text(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onToggleBackground)
+                .padding(8.dp),
+            text = if (state.backgroundTask) "🚀" else "☕",
+            color = if (state.backgroundTask) Color(0xFFfbbf24) else ClawColors.TextSecondary,
         )
         OutlinedTextField(
             value = text,
@@ -266,7 +277,7 @@ private fun InputBar(
                     onSend(text.trim())
                     text = ""
                 }
-                // canSend=false(isLoading)时忽略点击,不清空已输入内容
+                // canSend=false(isLoading/后台任务进行中)时忽略点击,不清空输入
             },
         ) {
             Text(
