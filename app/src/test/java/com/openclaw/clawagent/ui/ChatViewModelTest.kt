@@ -94,7 +94,14 @@ class ChatViewModelTest {
         override fun write(key: String, value: String) { map[key] = value }
     }
 
-    private class Harness(val transport: FakeTransport) {
+    /**
+     * [seed] runs after storage/prefs exist but BEFORE the ViewModel starts
+     * its async load — the only way to guarantee the init load sees data.
+     */
+    private class Harness(
+        val transport: FakeTransport,
+        seed: (ConversationStorage, SecurePrefs) -> Unit = { _, _ -> },
+    ) {
         private val context: Context = ApplicationProvider.getApplicationContext()
 
         val prefs = SecurePrefs(context).apply {
@@ -104,6 +111,11 @@ class ChatViewModelTest {
         val usageStore = MapUsageStore()
         // Pre-seed one record so the init snapshot carries a non-empty day.
         val usageTracker = UsageTracker(usageStore).apply { record(7, 3, 10) }
+
+        init {
+            seed(storage, prefs)
+        }
+
         // Mirrors ChatViewModel.factory wiring: the tracker rides ChatService.
         val vm = ChatViewModel(
             appContext = context,
@@ -139,12 +151,12 @@ class ChatViewModelTest {
 
     @Test
     fun `tree loads from storage on init`() = runBlocking {
-        val h = Harness(FakeTransport())
-        val tree = ConversationTree()
-        tree.appendMessage("user", "hello")
-        tree.appendMessage("assistant", "world")
-        h.storage.save(tree)
-
+        val h = Harness(FakeTransport(), seed = { storage, _ ->
+            storage.save(ConversationTree().apply {
+                appendMessage("user", "hello")
+                appendMessage("assistant", "world")
+            })
+        })
         val vm = awaitLoaded(h)
         assertEquals(listOf("hello", "world"), vm.state.value.messages.map { it.content })
     }
@@ -266,10 +278,9 @@ class ChatViewModelTest {
 
     @Test
     fun `new branch becomes active and switching back restores root`() = runBlocking {
-        val h = Harness(FakeTransport())
-        val tree = ConversationTree()
-        tree.appendMessage("user", "root msg")
-        h.storage.save(tree)
+        val h = Harness(FakeTransport(), seed = { storage, _ ->
+            storage.save(ConversationTree().apply { appendMessage("user", "root msg") })
+        })
 
         val vm = awaitLoaded(h)
         vm.onIntent(ChatIntent.NewBranch)
@@ -305,10 +316,9 @@ class ChatViewModelTest {
 
     @Test
     fun `copyAt emits clipboard effect with raw content`() = runBlocking {
-        val h = Harness(FakeTransport())
-        val tree = ConversationTree()
-        tree.appendMessage("user", "copy me")
-        h.storage.save(tree)
+        val h = Harness(FakeTransport(), seed = { storage, _ ->
+            storage.save(ConversationTree().apply { appendMessage("user", "copy me") })
+        })
         val vm = awaitLoaded(h)
 
         var copied: String? = null
@@ -323,11 +333,12 @@ class ChatViewModelTest {
 
     @Test
     fun `exportBranchText renders roles`() = runBlocking {
-        val h = Harness(FakeTransport())
-        val tree = ConversationTree()
-        tree.appendMessage("user", "问题")
-        tree.appendMessage("assistant", "回答")
-        h.storage.save(tree)
+        val h = Harness(FakeTransport(), seed = { storage, _ ->
+            storage.save(ConversationTree().apply {
+                appendMessage("user", "问题")
+                appendMessage("assistant", "回答")
+            })
+        })
         val vm = awaitLoaded(h)
         val export = vm.exportBranchText()
         assertTrue(export.contains("👤 问题"))
