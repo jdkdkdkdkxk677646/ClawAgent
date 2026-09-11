@@ -24,9 +24,9 @@ sealed class AgentEvent {
         val fullResult: String,
     ) : AgentEvent()
     data class Usage(
-        val promptTokens: Int,
-        val completionTokens: Int,
-        val totalTokens: Int,
+        val promptTokens: Long,
+        val completionTokens: Long,
+        val totalTokens: Long,
     ) : AgentEvent()
     data class RoundLimitReached(val rounds: Int) : AgentEvent()
     data class Error(val message: String, val cause: Throwable? = null) : AgentEvent()

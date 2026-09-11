@@ -66,7 +66,7 @@ class ChatService(
      * @param tools   optional `tools` JSON array to advertise to the model;
      *                null/empty disables function calling entirely
      */
-    fun streamChat(
+    override fun streamChat(
         endpoint: String,
         apiKey: String,
         model: String,
