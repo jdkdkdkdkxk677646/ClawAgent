@@ -2,6 +2,7 @@ package com.openclaw.clawagent
 
 import android.content.Context
 import android.graphics.Typeface
+import android.os.Looper
 import android.view.View
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
@@ -15,6 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 
 /**
  * Unit tests for the table rendering path of [MessageAdapter].
@@ -23,6 +25,9 @@ import org.robolectric.RobolectricTestRunner
  * tree the adapter builds (row/cell structure, block stacking, holder reuse)
  * without an emulator. MarkdownParser itself is covered by MarkdownParserTest;
  * here we only assert what the adapter makes of its output.
+ *
+ * v4.1: the adapter is a ListAdapter — [bind] pumps the main looper so the
+ * async diff finishes before binding, mirroring what RecyclerView sees.
  */
 @RunWith(RobolectricTestRunner::class)
 class MessageAdapterTableRenderTest {
@@ -31,7 +36,9 @@ class MessageAdapterTableRenderTest {
 
     /** Inflate + bind one message the same way RecyclerView would. */
     private fun bind(msg: ChatMessage): MessageAdapter.VH {
-        val adapter = MessageAdapter(mutableListOf(msg))
+        val adapter = MessageAdapter()
+        adapter.submitList(listOf(msg))
+        shadowOf(Looper.getMainLooper()).idle()
         val vh = adapter.onCreateViewHolder(LinearLayout(context), 0)
         adapter.onBindViewHolder(vh, 0)
         return vh
@@ -148,7 +155,7 @@ class MessageAdapterTableRenderTest {
 
     @Test
     fun `empty table widget is skipped without crash`() {
-        val adapter = MessageAdapter(mutableListOf())
+        val adapter = MessageAdapter()
         val parent = LinearLayout(context)
         parent.addView(TextView(context))
 
@@ -195,12 +202,14 @@ class MessageAdapterTableRenderTest {
 
     @Test
     fun `rebinding a table holder to plain text drops the old widget`() {
-        val adapter = MessageAdapter(
-            mutableListOf(
+        val adapter = MessageAdapter()
+        adapter.submitList(
+            listOf(
                 ChatMessage("assistant", "| A |\n| --- |\n| 1 |"),
                 ChatMessage("assistant", "just text"),
             )
         )
+        shadowOf(Looper.getMainLooper()).idle()
         val vh = adapter.onCreateViewHolder(LinearLayout(context), 0)
 
         adapter.onBindViewHolder(vh, 0)
@@ -214,12 +223,14 @@ class MessageAdapterTableRenderTest {
 
     @Test
     fun `rebinding a plain text holder back to a table rebuilds the widget`() {
-        val adapter = MessageAdapter(
-            mutableListOf(
+        val adapter = MessageAdapter()
+        adapter.submitList(
+            listOf(
                 ChatMessage("assistant", "just text"),
                 ChatMessage("assistant", "| A |\n| --- |\n| 1 |"),
             )
         )
+        shadowOf(Looper.getMainLooper()).idle()
         val vh = adapter.onCreateViewHolder(LinearLayout(context), 0)
 
         adapter.onBindViewHolder(vh, 0)
@@ -239,10 +250,11 @@ class MessageAdapterTableRenderTest {
         var copied: String? = null
         var clickedPosition: Int? = null
         val adapter = MessageAdapter(
-            mutableListOf(ChatMessage("assistant", raw)),
             onCopy = { copied = it },
             onMessageLongClick = { pos, _ -> clickedPosition = pos },
         )
+        adapter.submitList(listOf(ChatMessage("assistant", raw)))
+        shadowOf(Looper.getMainLooper()).idle()
         val vh = adapter.onCreateViewHolder(LinearLayout(context), 0)
         adapter.onBindViewHolder(vh, 0)
 

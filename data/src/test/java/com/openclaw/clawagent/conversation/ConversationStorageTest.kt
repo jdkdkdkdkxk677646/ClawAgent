@@ -3,6 +3,7 @@ package com.openclaw.clawagent.conversation
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -14,7 +15,8 @@ import org.robolectric.RobolectricTestRunner
 /**
  * Phase 2 data-layer tests, run on Robolectric with an on-disk database so
  * the migration path (legacy SharedPreferences JSON → Room) is exercised
- * through the real [ConversationStorage] public API.
+ * through the real [ConversationStorage] public API. v4.1: the API is
+ * suspend, so every test body runs inside [runBlocking].
  */
 @RunWith(RobolectricTestRunner::class)
 class ConversationStorageTest {
@@ -42,7 +44,7 @@ class ConversationStorageTest {
         """{"role":"$role","content":"$content","timestamp":42}"""
 
     @Test
-    fun `save and load round-trips branches, messages and active id`() {
+    fun `save and load round-trips branches, messages and active id`() = runBlocking {
         val storage = ConversationStorage(context)
         val tree = ConversationTree()
         tree.appendMessage("user", "hello")
@@ -69,12 +71,12 @@ class ConversationStorageTest {
     }
 
     @Test
-    fun `empty database loads as null`() {
+    fun `empty database loads as null`() = runBlocking {
         assertNull(ConversationStorage(context).load())
     }
 
     @Test
-    fun `legacy json blob is migrated into room and cleared`() {
+    fun `legacy json blob is migrated into room and cleared`() = runBlocking {
         val legacy = context.getSharedPreferences("claw_branches", Context.MODE_PRIVATE)
         legacy.edit().putString(
             "tree",
@@ -104,7 +106,7 @@ class ConversationStorageTest {
     }
 
     @Test
-    fun `corrupt legacy blob is dropped without crashing`() {
+    fun `corrupt legacy blob is dropped without crashing`() = runBlocking {
         val legacy = context.getSharedPreferences("claw_branches", Context.MODE_PRIVATE)
         legacy.edit().putString("tree", "{not valid json").commit()
 
@@ -114,7 +116,7 @@ class ConversationStorageTest {
     }
 
     @Test
-    fun `second save replaces instead of duplicating`() {
+    fun `second save replaces instead of duplicating`() = runBlocking {
         val storage = ConversationStorage(context)
         val tree = ConversationTree()
         tree.appendMessage("user", "v1")

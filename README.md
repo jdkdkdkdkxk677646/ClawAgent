@@ -99,13 +99,13 @@ APK 输出路径:`app/build/outputs/apk/debug/app-debug.apk`
 v4.0 完成了绞杀式重写——UI 换 Compose(MVI 单向数据流),领域层下沉为纯 Kotlin module,数据层换 Room。**文件白名单从纪律变成物理边界**:
 
 ```
-:app          Compose UI(ChatScreen + MVI ChatViewModel)+ Android 工具 + 设置对话框(View 版,Phase 4 迁)
+:app          Compose UI(ChatScreen + MVI ChatViewModel)+ Android 工具 + Compose 设置对话框
 :core-agent   纯 JVM:AgentLoop(ReAct 循环)+ OpenAI 协议序列化 + SSE 解析 + 传输接口 + 工具注册表 + 用量台账
 :core-tools   纯 JVM:六只纯工具爪子(计算器/时钟/笔记/抓取/搜索/规划)
 :data         Room 持久化:会话树三表(branches/messages/meta)+ 旧 JSON 自动迁移
 ```
 
-依赖方向:app → core-agent ← core-tools;app → data → core-agent。**`:core-agent` 与 `:core-tools` 禁止任何 `android.*` import**,agent 循环因此可以 100% 纯 JVM 单元测试(`AgentLoopTest` 用 fake transport 覆盖 15 轮循环、工具降级、防死循环守卫)。设置对话框暂为 View 版(在 Compose 内弹出),Phase 4 迁 Compose。
+依赖方向:app → core-agent ← core-tools;app → data → core-agent。**`:core-agent` 与 `:core-tools` 禁止任何 `android.*` import**,agent 循环因此可以 100% 纯 JVM 单元测试(`AgentLoopTest` 用 fake transport 覆盖 15 轮循环、工具降级、防死循环守卫)。v4.1 起存储层全 suspend——DAO 挂 Room 事务执行器,主线程零 SQLite;UI 全 Compose,消息气泡复用旧 View 渲染管线(AndroidView 桥接,Markdown/表格零损失)+ DiffUtil 增量刷新。
 
 ### Agent 循环:一条消息是怎么被"办成"的
 
@@ -148,8 +148,8 @@ v4.0 完成了绞杀式重写——UI 换 Compose(MVI 单向数据流),领域层
 - [x] **Agent 能力对齐(v3.0.0):web_search、task_plan、notes 检索与主动记忆、提醒持久化、图片输入、Markdown 增强、13 家服务商预设**
 - [x] 多 AI 并行协作机制(`tasks/` 看板,v2.2.0 起)
 - [x] **v4.0 重写三阶段:纯 JVM 领域层(:core-agent/:core-tools)、Room 数据层(:data,自动迁移)、Compose UI + MVI(4.0.0)**
-- [ ] 设置对话框迁 Compose(现为 View 版桥接)
-- [ ] 消息列表 DiffUtil/分页 + token 用量 UI 展示
+- [x] **v4.1 精细化:存储层全 suspend(Room 事务执行器,主线程零 SQLite)、设置对话框迁 Compose、今日 token 用量 UI、消息列表 DiffUtil 增量刷新**
+- [ ] 消息列表分页(超长会话)
 - [ ] 表格渲染升级为横向滚动视图的 Compose 原生版
 - [ ] 图片输入支持拍照直拍的 Compose 内整合
 

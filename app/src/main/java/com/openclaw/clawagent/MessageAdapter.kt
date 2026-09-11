@@ -22,6 +22,8 @@ import android.widget.LinearLayout
 import android.widget.TableLayout
 import android.widget.TableRow
 import android.widget.TextView
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.openclaw.clawagent.databinding.ItemMessageBinding
 import com.openclaw.clawagent.markdown.MarkdownParser
@@ -46,12 +48,19 @@ data class ChatMessage(val role: String, var content: String)
  * The raw (unrendered) text is emitted through [onCopy] on long-press so the
  * clipboard gets exactly what the model wrote. Position is passed back so
  * the Activity can also offer branch-related actions ("fork from here").
+ *
+ * v4.1: extends [ListAdapter] — diffed submits replace the old full-attach
+ * `notifyDataSetChanged` mirror. Items are position-keyed ([ChatMessage] has
+ * no identity), and content changes rebind in place, so streaming only
+ * rebinds the tail message instead of every visible row. Callers must submit
+ * *snapshot copies* — `ChatMessage.content` is mutable and the loop writes it
+ * in place, so a submitted item that is still aliased by the live tree would
+ * defeat the diff (old list would read the new text).
  */
 class MessageAdapter(
-    private val messages: List<ChatMessage>,
     private val onCopy: (String) -> Unit = {},
     private val onMessageLongClick: ((position: Int, message: ChatMessage) -> Unit)? = null,
-) : RecyclerView.Adapter<MessageAdapter.VH>() {
+) : ListAdapter<ChatMessage, MessageAdapter.VH>(DIFF) {
 
     inner class VH(val binding: ItemMessageBinding) : RecyclerView.ViewHolder(binding.root) {
 
@@ -70,8 +79,9 @@ class MessageAdapter(
             val pos = boundPosition.takeIf { it != RecyclerView.NO_POSITION }
                 ?: adapterPosition
             if (pos != RecyclerView.NO_POSITION) {
-                onMessageLongClick?.invoke(pos, messages[pos])
-                onCopy(messages[pos].content)
+                val msg = getItem(pos)
+                onMessageLongClick?.invoke(pos, msg)
+                onCopy(msg.content)
             }
             true
         }
@@ -112,7 +122,7 @@ class MessageAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         holder.boundPosition = position
-        val msg = messages[position]
+        val msg = getItem(position)
         val binding = holder.binding
         val context = holder.itemView.context
 
@@ -130,8 +140,6 @@ class MessageAdapter(
 
         bindContent(holder, msg, textColor)
     }
-
-    override fun getItemCount() = messages.size
 
     // ----- rendering -------------------------------------------------------
 
@@ -332,6 +340,35 @@ class MessageAdapter(
             paint.color = 0xFF111827.toInt()
             canvas.drawRect(left.toFloat() + 2, top + 1f, right.toFloat() - 2, bottom - 1f, paint)
             paint.color = prev
+        }
+    }
+
+    override fun onBindViewHolder(holder: VH, position: Int, payloads: List<Any>) {
+        if (payloads.isEmpty()) {
+            super.onBindViewHolder(holder, position, payloads)
+        } else {
+            // "text" payload: same row, content changed (streaming tail) — a
+            // full rebind of just this holder, skipping rows that didn't move.
+            onBindViewHolder(holder, position)
+        }
+    }
+
+    companion object {
+        /**
+         * Role-keyed identity: with no stable ids, the diff pairs up messages
+         * by role sequence — appends and streaming-tail rebinds (the two hot
+         * paths) diff to a single insert/update. Callers submit fresh copies
+         * each time (see class doc), so `equals` on the data class is a
+         * genuine content comparison.
+         */
+        private val DIFF = object : DiffUtil.ItemCallback<ChatMessage>() {
+            override fun areItemsTheSame(oldItem: ChatMessage, newItem: ChatMessage) =
+                oldItem.role == newItem.role
+
+            override fun areContentsTheSame(oldItem: ChatMessage, newItem: ChatMessage) =
+                oldItem == newItem
+
+            override fun getChangePayload(oldItem: ChatMessage, newItem: ChatMessage) = "text"
         }
     }
 }

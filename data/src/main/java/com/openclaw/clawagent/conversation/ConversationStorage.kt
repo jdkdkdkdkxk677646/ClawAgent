@@ -12,8 +12,11 @@ import org.json.JSONObject
  * v4.0 Phase 2: the backing store is Room (`claw.db`, one row per branch /
  * message, plus a tiny meta table for the active-branch pointer) instead of
  * a single JSON blob in SharedPreferences — no more 300-message ceiling,
- * real queryability, and atomic transactions. The public API ([load] /
- * [save]) is unchanged, so callers didn't move.
+ * real queryability, and atomic transactions.
+ *
+ * v4.1: [load] / [save] are `suspend` and Room runs them on its own
+ * transaction executor — `allowMainThreadQueries()` is gone. The public API
+ * shape is otherwise unchanged, so callers only add `await`/`launch`.
  *
  * Legacy migration: the first load after upgrading detects the old
  * `claw_branches` SharedPreferences JSON, imports it into Room, and deletes
@@ -26,23 +29,18 @@ class ConversationStorage(context: Context) {
         context.applicationContext,
         ClawDatabase::class.java,
         ClawDatabase.NAME,
-    )
-        // The tree is small; the legacy call sites are synchronous. When the
-        // UI layer moves to a ViewModel (Phase 3) these become suspend calls
-        // and this flag goes away.
-        .allowMainThreadQueries()
-        .build()
+    ).build()
 
     private val legacyPrefs =
         context.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
 
     /** Returns null if no save exists or the save is corrupt. */
-    fun load(): Pair<List<ConversationBranch>, String>? {
+    suspend fun load(): Pair<List<ConversationBranch>, String>? {
         migrateLegacyIfAny()
         return loadFromRoom()
     }
 
-    fun save(tree: ConversationTree) {
+    suspend fun save(tree: ConversationTree) {
         try {
             val (branches, messages) = toEntities(tree)
             db.conversationDao().replaceAllWithMeta(
@@ -107,7 +105,7 @@ class ConversationStorage(context: Context) {
 
     // ── legacy migration ─────────────────────────────────────────
 
-    private fun migrateLegacyIfAny() {
+    private suspend fun migrateLegacyIfAny() {
         val raw = legacyPrefs.getString(LEGACY_KEY_TREE, null) ?: return
         val imported = try {
             parseLegacy(raw)

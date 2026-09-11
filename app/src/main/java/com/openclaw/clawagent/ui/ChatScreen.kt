@@ -96,7 +96,7 @@ fun ChatScreen(
                 .imePadding(),
         ) {
             if (state.showWelcome) {
-                WelcomeBlock(modifier = Modifier.weight(1f))
+                WelcomeBlock(modifier = Modifier.weight(1f), todayUsage = state.todayUsage)
             } else {
                 // 消息列表委托给调用者注入的 RecyclerView(复用 MessageAdapter
                 // 的 Markdown/表格/长按管线,零 parity 损失)。
@@ -187,7 +187,7 @@ fun ChatScreen(
 }
 
 @Composable
-private fun WelcomeBlock(modifier: Modifier = Modifier) {
+private fun WelcomeBlock(modifier: Modifier = Modifier, todayUsage: String = "") {
     Box(
         modifier = modifier
             .fillMaxWidth(),
@@ -202,6 +202,15 @@ private fun WelcomeBlock(modifier: Modifier = Modifier) {
                 color = ClawColors.TextSecondary.copy(alpha = 0.7f),
                 fontSize = 12.sp,
             )
+            // v4.1:今日 token 台账(有记录才显示)。
+            if (todayUsage.isNotEmpty()) {
+                Spacer(Modifier.size(20.dp))
+                Text(
+                    "📊 $todayUsage",
+                    color = ClawColors.TextSecondary.copy(alpha = 0.6f),
+                    fontSize = 11.sp,
+                )
+            }
         }
     }
 }
@@ -253,10 +262,11 @@ private fun InputBar(
             onClick = {
                 if (state.isSending) {
                     onStop()
-                } else {
+                } else if (state.canSend) {
                     onSend(text.trim())
                     text = ""
                 }
+                // canSend=false(isLoading)时忽略点击,不清空已输入内容
             },
         ) {
             Text(

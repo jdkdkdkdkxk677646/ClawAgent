@@ -10,37 +10,43 @@ import androidx.room.Transaction
  * Whole-tree persistence. The tree is small (≤ a few hundred messages), so
  * saving is a full replace inside one transaction — same semantics as the
  * old JSON blob, minus the size ceiling and with real queryability later.
+ *
+ * v4.1: every method is `suspend` — Room runs them on its own transaction
+ * executor, so the UI thread never touches SQLite. (Phase 2 shipped these as
+ * blocking methods plus `allowMainThreadQueries()` because the call sites
+ * were synchronous; the Phase 4 ViewModel makes them async and the flag is
+ * gone.)
  */
 @Dao
 interface ConversationDao {
 
     @Query("SELECT * FROM branches ORDER BY sortOrder ASC")
-    fun branches(): List<BranchEntity>
+    suspend fun branches(): List<BranchEntity>
 
     @Query("SELECT * FROM messages ORDER BY branchId ASC, idx ASC")
-    fun messages(): List<MessageEntity>
+    suspend fun messages(): List<MessageEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertBranches(branches: List<BranchEntity>)
+    suspend fun insertBranches(branches: List<BranchEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertMessages(messages: List<MessageEntity>)
+    suspend fun insertMessages(messages: List<MessageEntity>)
 
     @Query("DELETE FROM branches")
-    fun clearBranches()
+    suspend fun clearBranches()
 
     @Query("DELETE FROM messages")
-    fun clearMessages()
+    suspend fun clearMessages()
 
     @Query("SELECT value FROM meta WHERE `key` = :key")
-    fun getMeta(key: String): String?
+    suspend fun getMeta(key: String): String?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun putMeta(entry: MetaEntity)
+    suspend fun putMeta(entry: MetaEntity)
 
     /** Atomically swap the whole tree. */
     @Transaction
-    fun replaceAll(branches: List<BranchEntity>, messages: List<MessageEntity>) {
+    suspend fun replaceAll(branches: List<BranchEntity>, messages: List<MessageEntity>) {
         clearBranches()
         clearMessages()
         insertBranches(branches)
@@ -48,7 +54,7 @@ interface ConversationDao {
     }
 
     @Transaction
-    fun replaceAllWithMeta(
+    suspend fun replaceAllWithMeta(
         branches: List<BranchEntity>,
         messages: List<MessageEntity>,
         meta: List<MetaEntity>,

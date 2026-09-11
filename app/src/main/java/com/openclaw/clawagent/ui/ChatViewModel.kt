@@ -41,10 +41,14 @@ data class ChatUiState(
     val roleKey: String = "general",
     val roleLabel: String = "通用助手",
     val isSending: Boolean = false,
+    /** 会话树从 Room 加载中;加载完成前禁止发送/切分支,防写入竞态。 */
+    val isLoading: Boolean = false,
     val stagedImageCount: Int = 0,
+    /** 今日 token 台账(UsageTracker.todaySummary()),v4.1 起 UI 展示。 */
+    val todayUsage: String = "",
 ) {
     val showWelcome: Boolean get() = messages.isEmpty()
-    val canSend: Boolean get() = !isSending
+    val canSend: Boolean get() = !isSending && !isLoading
 }
 
 data class BranchUi(val id: String, val name: String, val messageCount: Int, val isActive: Boolean)
@@ -78,6 +82,7 @@ class ChatViewModel(
     private val storage: ConversationStorage,
     private val chatService: ChatService,
     private val agentLoop: AgentLoop,
+    private val usageTracker: com.openclaw.clawagent.provider.UsageTracker,
 ) : ViewModel() {
 
     private val toolbox: AgentToolbox = AgentWiring.forAndroid(appContext)
@@ -85,7 +90,11 @@ class ChatViewModel(
     private val tree = ConversationTree()
 
     private val _state = MutableStateFlow(
-        ChatUiState(roleLabel = SystemPromptManager.getRoleDisplayName(prefs.roleKey))
+        ChatUiState(
+            isLoading = true,
+            roleLabel = SystemPromptManager.getRoleDisplayName(prefs.roleKey),
+            todayUsage = usageTracker.todaySummary(),
+        )
     )
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
@@ -97,13 +106,18 @@ class ChatViewModel(
     private var sendJob: Job? = null
 
     init {
-        val loaded = storage.load()
-        if (loaded != null) {
-            val (branches, activeId) = loaded
-            tree.replaceAll(branches, activeId)
+        // v4.1:加载改异步(Room suspend DAO)。加载完成前 isLoading=true,
+        // 发送与分支操作被 canSend=false 挡住,避免空树覆盖磁盘的竞态。
+        viewModelScope.launch {
+            val loaded = storage.load()
+            if (loaded != null) {
+                val (branches, activeId) = loaded
+                tree.replaceAll(branches, activeId)
+            }
+            syncMessages()
+            _state.value = _state.value.copy(isLoading = false)
+            publish()
         }
-        syncMessages()
-        publish()
     }
 
     // ── intents ──────────────────────────────────────────────────
@@ -200,6 +214,7 @@ class ChatViewModel(
     // ── send / agent loop ────────────────────────────────────────
 
     private fun sendMessage(text: String) {
+        if (_state.value.isLoading) return
         if (_state.value.isSending) {
             sendJob?.cancel()
             return
@@ -260,8 +275,11 @@ class ChatViewModel(
                 }
             } finally {
                 tree.activeBranch.messages.add(BranchMessage("assistant", assistantMsg.content))
-                storage.save(tree)
-                _state.value = _state.value.copy(isSending = false)
+                persistTree()
+                _state.value = _state.value.copy(
+                    isSending = false,
+                    todayUsage = usageTracker.todaySummary(),
+                )
                 publish()
                 _effects.trySend(ChatEffect.ScrollToBottom)
             }
@@ -287,7 +305,10 @@ class ChatViewModel(
                 assistantMsg.content += "↳ " + event.preview + "\n"
                 notifyChanged()
             }
-            is AgentEvent.Usage -> Unit // ledger updated inside ChatService
+            is AgentEvent.Usage -> {
+                // 台账已在 ChatService 内记录;这里刷新 UI 展示。
+                _state.value = _state.value.copy(todayUsage = usageTracker.todaySummary())
+            }
             is AgentEvent.RoundLimitReached -> {
                 assistantMsg.content += "\n\n⚠️ 已连续调用工具 ${event.rounds} 轮,为避免死循环已停止。"
                 notifyChanged()
@@ -333,7 +354,7 @@ class ChatViewModel(
     // ── branches / roles / copy ──────────────────────────────────
 
     private fun startNewBranch() {
-        if (_state.value.isSending) {
+        if (_state.value.isLoading || _state.value.isSending) {
             _effects.trySend(ChatEffect.Toast("生成中,请先停止再切换或新建分支"))
             return
         }
@@ -343,20 +364,21 @@ class ChatViewModel(
         }
         tree.forkAt(messageIndex = tree.activeBranch.messages.size, name = "新分支")
         syncMessages()
-        storage.save(tree)
+        persistTree()
         publish()
     }
 
     private fun switchBranch(branchId: String) {
-        if (_state.value.isSending || branchId == tree.activeBranchId) return
+        if (_state.value.isLoading || _state.value.isSending) return
+        if (branchId == tree.activeBranchId) return
         tree.switchTo(branchId)
         syncMessages()
-        storage.save(tree)
+        persistTree()
         publish()
     }
 
     private fun deleteBranch(branchId: String) {
-        if (_state.value.isSending) {
+        if (_state.value.isLoading || _state.value.isSending) {
             _effects.trySend(ChatEffect.Toast("生成中,请先停止再删除分支"))
             return
         }
@@ -367,12 +389,12 @@ class ChatViewModel(
         }
         tree.deleteBranch(branchId)
         syncMessages()
-        storage.save(tree)
+        persistTree()
         publish()
     }
 
     private fun forkAt(position: Int) {
-        if (_state.value.isSending) {
+        if (_state.value.isLoading || _state.value.isSending) {
             _effects.trySend(ChatEffect.Toast("生成中,请先停止再分叉"))
             return
         }
@@ -381,8 +403,16 @@ class ChatViewModel(
         val inherited = parentIndexOf(position) + 1
         tree.forkAt(messageIndex = inherited, name = "分叉")
         syncMessages()
-        storage.save(tree)
+        persistTree()
         publish()
+    }
+
+    /**
+     * v4.1:持久化改异步(suspend DAO 在 Room 的事务执行器上跑,不再占主线程)。
+     * 树的可变状态只在主线程动,这里只是把快照写出去。
+     */
+    private fun persistTree() {
+        viewModelScope.launch { storage.save(tree) }
     }
 
     /** 可见列表第 N 条在当前分支自有消息里的下标(-1 = 继承自父分支)。 */
@@ -427,7 +457,7 @@ class ChatViewModel(
                 kotlinx.coroutines.delay(15)
             }
             tree.activeBranch.messages.add(BranchMessage("assistant", reply))
-            storage.save(tree)
+            persistTree()
             _state.value = _state.value.copy(isSending = false)
             publish()
         }
@@ -436,11 +466,17 @@ class ChatViewModel(
     // ── state plumbing ───────────────────────────────────────────
 
     private fun appendLocal(msg: ChatMessage) {
-        _state.value = _state.value.copy(messages = _state.value.messages + msg)
+        // 快照拷贝:列表里绝不能有活引用(流式会原地改 content,
+        // DiffUtil 的旧列表会读到新值,打字机就停了)。
+        _state.value = _state.value.copy(
+            messages = _state.value.messages + ChatMessage(msg.role, msg.content)
+        )
     }
 
     private fun notifyChanged() {
-        _state.value = _state.value.copy(messages = _state.value.messages.toList())
+        _state.value = _state.value.copy(
+            messages = _state.value.messages.map { ChatMessage(it.role, it.content) }
+        )
     }
 
     private fun syncMessages() {
@@ -472,15 +508,16 @@ class ChatViewModel(
                 initializer {
                     val prefs = SecurePrefs(activity)
                     val storage = ConversationStorage(activity)
-                    val chatService = ChatService(
-                        usageTracker = com.openclaw.clawagent.provider.UsageTracker(prefs.usageStore())
-                    )
+                    val usageTracker =
+                        com.openclaw.clawagent.provider.UsageTracker(prefs.usageStore())
+                    val chatService = ChatService(usageTracker = usageTracker)
                     ChatViewModel(
                         appContext = activity.applicationContext,
                         prefs = prefs,
                         storage = storage,
                         chatService = chatService,
                         agentLoop = AgentLoop(chatService),
+                        usageTracker = usageTracker,
                     )
                 }
             }
