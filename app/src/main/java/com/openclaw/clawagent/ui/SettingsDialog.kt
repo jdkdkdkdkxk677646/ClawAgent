@@ -110,7 +110,7 @@ fun SettingsDialog(
         health = ProviderHealth.checking(provider.id)
         scope.launch {
             val result = withContext(Dispatchers.IO) {
-                healthChecker.check(provider, keyOverride)
+                healthChecker.check(provider, apiKeyOverride)
             }
             healthCache.put(result)
             if (result.providerId == activeProvider.id) {
