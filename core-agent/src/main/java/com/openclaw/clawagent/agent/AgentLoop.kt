@@ -36,7 +36,7 @@ class AgentLoop(private val transport: com.openclaw.clawagent.provider.ChatTrans
             var requestedCalls: List<ChatService.ToolCall>? = null
             var failed = false
 
-            transport.stream(
+            transport.streamChat(
                 endpoint = request.endpoint,
                 apiKey = request.apiKey,
                 model = request.model,

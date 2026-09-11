@@ -12,12 +12,12 @@ import org.json.JSONArray
  * Chat Completions protocol with optional function-calling tools.
  */
 interface ChatTransport {
-    fun stream(
+    fun streamChat(
         endpoint: String,
         apiKey: String,
         model: String,
         history: List<ChatService.Message>,
         stream: Boolean,
         tools: JSONArray?,
-    ): Flow<StreamEvent>
+    ): Flow<ChatService.StreamEvent>
 }
