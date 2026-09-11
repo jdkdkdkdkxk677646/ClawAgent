@@ -72,7 +72,7 @@ class ChatService(
         model: String,
         history: List<Message>,
         stream: Boolean,
-        tools: JSONArray? = null,
+        tools: JSONArray?,
     ): Flow<StreamEvent> = callbackFlow {
         // Drop a trailing empty assistant placeholder that the UI inserts
         // before kicking off the request.
