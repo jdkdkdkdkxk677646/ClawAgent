@@ -105,7 +105,7 @@ fun SettingsDialog(
     var health by remember { mutableStateOf(healthCache.get(current.id)) }
     var checking by remember { mutableStateOf(false) }
 
-    fun check(provider: Provider, keyOverride: String?) {
+    fun check(provider: Provider, apiKeyOverride: String?) {
         checking = true
         health = ProviderHealth.checking(provider.id)
         scope.launch {
