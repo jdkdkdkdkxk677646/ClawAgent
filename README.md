@@ -94,40 +94,49 @@ APK 输出路径:`app/build/outputs/apk/debug/app-debug.apk`
 | 🦾 Agent 模式 | 允许模型自主多步调用 9 个内置工具(单次最多 15 轮),需模型支持 Function Calling |
 | 工具配置 | 按工具粒度启停(Agent 模式下一行蓝色小字)。被关掉的工具不会出现在模型的工具清单里,也无法被调用——不放心"读剪贴板/发通知"就关掉对应爪子 |
 
-## 架构:工具箱是怎么接进去的
+## 架构(v4.0)
+
+v4.0 完成了绞杀式重写——UI 换 Compose(MVI 单向数据流),领域层下沉为纯 Kotlin module,数据层换 Room。**文件白名单从纪律变成物理边界**:
 
 ```
-用户输入 → buildRequestHistory()
+:app          Compose UI(ChatScreen + MVI ChatViewModel)+ Android 工具 + 设置对话框(View 版,Phase 4 迁)
+:core-agent   纯 JVM:AgentLoop(ReAct 循环)+ OpenAI 协议序列化 + SSE 解析 + 传输接口 + 工具注册表 + 用量台账
+:core-tools   纯 JVM:六只纯工具爪子(计算器/时钟/笔记/抓取/搜索/规划)
+:data         Room 持久化:会话树三表(branches/messages/meta)+ 旧 JSON 自动迁移
+```
+
+依赖方向:app → core-agent ← core-tools;app → data → core-agent。**`:core-agent` 与 `:core-tools` 禁止任何 `android.*` import**,agent 循环因此可以 100% 纯 JVM 单元测试(`AgentLoopTest` 用 fake transport 覆盖 15 轮循环、工具降级、防死循环守卫)。设置对话框暂为 View 版(在 Compose 内弹出),Phase 4 迁 Compose。
+
+### Agent 循环:一条消息是怎么被"办成"的
+
+```
+用户输入 → ChatViewModel.buildRequestHistory()(:app)
              └─ Agent 模式开启时,自动追加 AgentDirective 行为指令
                 (内含工具清单,模型由此知道自己是谁、有什么爪子)
-         → runAgentTurn()(循环,最多 15 轮)
-             ├─ ChatService.streamChat(tools = AgentToolbox.requestJson())
-             ├─ 模型返回 tool_calls → AgentToolbox.execute(name, args)
+         → AgentLoop.run()(:core-agent,循环,最多 15 轮)
+             ├─ ChatTransport.streamChat(tools = Toolsets.requestJson())
+             ├─ 模型返回 tool_calls → 工具爪子 execute(name, args)
              ├─ 结果作为 role:"tool" 消息回传,进入下一轮
              └─ 无工具调用 → 最终回答,结束
 ```
 
-- `agent/AgentTool.kt` — 工具接口(name / description / JSON Schema / execute)
-- `agent/AgentToolbox.kt` — 注册表;`core()`(纯 JVM,可单测)与 `forAndroid()`(完整爪子)两套
-- `agent/CoreTools.kt` — 计算器、时钟(纯 JVM)
-- `agent/NoteTool.kt` / `agent/HttpTool.kt` — 笔记本、网页抓取(纯 JVM 逻辑 + 可单测)
-- `agent/AndroidTools.kt` — 设备信息、剪贴板、通知、提醒、打开网页
-- `agent/AgentDirective.kt` — Agent 行为指令(ReAct 式准则)
+- `:core-tools` `Toolsets.kt` — 工具注册表;`core()`(纯 JVM,可单测)与 `forAndroid()`(完整爪子)两套
 - 每个工具 `execute` 永不抛异常:任何失败都变成模型可读的错误字符串,Agent 循环不会崩
+- `UsageLedger`(用量台账)记录每次 Agent 回合的工具调用与 token 消耗
 
 ## 安全性说明
 
 - API Key 使用 Android Keystore 加密存储,恢复出厂 / 换机后不迁移
 - 应用申请了明文网络权限(`usesCleartextTraffic`)——这是为了支持本地 Ollama 等 `http://` 端点,HTTPS 服务商不受影响
 - `http_get` 仅允许 http/https、拒绝内嵌凭证;通知需要系统授权(API 33+);笔记存储在应用私有目录
-- 提醒基于应用内 Handler:应用进程存活期间有效,被系统杀掉则不触发(工具会如实告知模型)
+- 提醒基于 AlarmManager 持久化:应用被杀 / 设备重启后依然触发(开机广播自动恢复)
 
 ## 技术栈
 
-- Kotlin + Android SDK 34(minSdk 26)
-- OkHttp 4 + 自研 SSE 流解析器(跨 chunk 边界安全)
-- Material 3 + ViewBinding
-- JUnit 单元测试(SSE 解析 / Markdown / 工具调用累积 / 计算器 / 笔记本 / URL 校验 / 工具箱注册)+ GitHub Actions CI
+- Kotlin 1.9.20 + Android SDK 34(minSdk 26),多模块 Gradle(`:app` / `:core-agent` / `:core-tools` / `:data`)
+- Jetpack Compose + Material 3(MVI 单向数据流),消息气泡复用旧 View 渲染管线(AndroidView 桥接,Markdown/表格零损失)
+- Room 2.6(会话树持久化 + 自动迁移)+ OkHttp 4 + 自研 SSE 流解析器(跨 chunk 边界安全)
+- JUnit 单元测试(AgentLoop / 工具 / SSE / Markdown / Room 迁移 / 计算器 / 笔记本 / URL 校验)+ GitHub Actions CI
 
 ## Roadmap
 
@@ -136,27 +145,17 @@ APK 输出路径:`app/build/outputs/apk/debug/app-debug.apk`
 - [x] 多会话管理:分支树 / 长按删除 / 导出(v1.3.0)
 - [x] 分支树稳定性:visibleMessages 上溯遍历 + 流式期间分支保护(v2.0.1)
 - [x] 工具配置:按工具粒度启停 + 签名 Release 自动发版(v2.1.0)
-- [x] **Agent 能力对齐(v3.0.0):web_search 联网搜索、task_plan 任务规划、notes 检索与主动记忆、AlarmManager 提醒持久化(重启恢复)、图片输入(vision)、Markdown 表格/任务列表、13 家服务商预设**
-- [x] 多 AI 并行协作机制(`tasks/` 看板:任务卡 + 文件白名单 + 领任务填表,v2.2.0 起)
-- [ ] 表格渲染升级为横向滚动视图
-- [ ] 图片输入支持拍照直拍
-- [ ] Agent 回合 token 用量统计
+- [x] **Agent 能力对齐(v3.0.0):web_search、task_plan、notes 检索与主动记忆、提醒持久化、图片输入、Markdown 增强、13 家服务商预设**
+- [x] 多 AI 并行协作机制(`tasks/` 看板,v2.2.0 起)
+- [x] **v4.0 重写三阶段:纯 JVM 领域层(:core-agent/:core-tools)、Room 数据层(:data,自动迁移)、Compose UI + MVI(4.0.0)**
+- [ ] 设置对话框迁 Compose(现为 View 版桥接)
+- [ ] 消息列表 DiffUtil/分页 + token 用量 UI 展示
+- [ ] 表格渲染升级为横向滚动视图的 Compose 原生版
+- [ ] 图片输入支持拍照直拍的 Compose 内整合
 
 ## 多 AI 协作
 
-本项目的部分功能由多个 AI 并行开发:`tasks/BOARD.md` 是任务看板,每张任务卡划定**文件白名单**保证互不冲突,流程是"领任务(claimed)→ 交付(done)→ 填表"。v3.0.0 的提醒持久化、Markdown 增强、服务商预设、对抗测试 36 例即由 4 个 AI 并行交付。想参与?挑一张 `todo` 卡。
-
-## 架构(v4.0 起)
-
-v4.0 开始绞杀式重构——领域层下沉为纯 Kotlin module,**文件白名单从纪律变成物理边界**:
-
-```
-:app          UI(View 体系,后续阶段换 Compose)+ Android 工具 + 会话存储
-:core-agent   纯 JVM:AgentLoop(ReAct 循环)+ OpenAI 协议序列化 + SSE 解析 + 传输接口 + 工具注册表 + 用量台账
-:core-tools   纯 JVM:六只纯工具爪子(计算器/时钟/笔记/抓取/搜索/规划)
-```
-
-依赖方向:app → core-agent ← core-tools。**`:core-agent` 与 `:core-tools` 禁止任何 `android.*` import**(CI 强制),因此 agent 循环现在可以 100% 纯 JVM 单元测试(`AgentLoopTest` 用 fake transport 覆盖 15 轮循环、工具降级、防死循环守卫)。后续阶段:数据层 Room/DataStore、UI 层 Compose。
+本项目的部分功能由多个 AI 并行开发:`tasks/BOARD.md` 是任务看板,每张任务卡划定**文件白名单**保证互不冲突,流程是"领任务(claimed)→ 交付(done)→ 填表"。v3.0.0 的四个特性与 v4.0 的三个阶段(含全部测试)均由多 AI/多子代理并行交付。想参与?挑一张 `todo` 卡。
 
 ## License
 
