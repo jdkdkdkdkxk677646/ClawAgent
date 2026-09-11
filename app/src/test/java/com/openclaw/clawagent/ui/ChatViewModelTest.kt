@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
@@ -40,11 +39,12 @@ import org.robolectric.RobolectricTestRunner
  * [FakeTransport] behind the real [AgentLoop]. That covers the full send →
  * stream → tool-execute → persist cycle with zero networking.
  *
- * Threading: `Dispatchers.setMain(UnconfinedTestDispatcher)` makes
- * `viewModelScope.launch` run eagerly to the first suspension point, so
- * state updates are observable right after the triggering call; Room's own
- * executors finish asynchronously, hence the [awaitUntil] polls. Note the
- * daily ledger is recorded by the real [ChatService] (covered by
+ * Threading: `Dispatchers.setMain(Dispatchers.Unconfined)` makes
+ * `viewModelScope.launch` run eagerly AND lets continuations resumed from
+ * Room's executor threads run immediately (a TestDispatcher would park them
+ * in its virtual scheduler, which a plain `runBlocking` never advances).
+ * Room still finishes asynchronously, hence the [awaitUntil] polls. Note
+ * the daily ledger is recorded by the real [ChatService] (covered by
  * UsageTrackerTest) — with a fake transport nothing records, so these tests
  * only assert the UI line mirrors the tracker.
  */
@@ -55,7 +55,7 @@ class ChatViewModelTest {
 
     @Before
     fun setUp() {
-        Dispatchers.setMain(UnconfinedTestDispatcher())
+        Dispatchers.setMain(Dispatchers.Unconfined)
         context.deleteDatabase(ClawDatabase.NAME)
         context.getSharedPreferences("claw_branches", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("claw_settings", Context.MODE_PRIVATE).edit().clear().commit()
@@ -102,7 +102,8 @@ class ChatViewModelTest {
         }
         val storage = ConversationStorage(context)
         val usageStore = MapUsageStore()
-        val usageTracker = UsageTracker(usageStore)
+        // Pre-seed one record so the init snapshot carries a non-empty day.
+        val usageTracker = UsageTracker(usageStore).apply { record(7, 3, 10) }
         // Mirrors ChatViewModel.factory wiring: the tracker rides ChatService.
         val vm = ChatViewModel(
             appContext = context,
@@ -253,10 +254,8 @@ class ChatViewModelTest {
     @Test
     fun `todayUsage mirrors the injected tracker`() = runBlocking {
         val h = Harness(FakeTransport())
-        // Record through the tracker directly (the real recording path is
-        // ChatService, covered by UsageTrackerTest) — the UI line must show
-        // exactly what the tracker holds.
-        h.usageTracker.record(7, 3, 10)
+        // The tracker pre-seeded one record before the VM snapshot was built;
+        // the UI line must show exactly what the tracker holds.
         val vm = awaitLoaded(h)
         val summary = h.usageTracker.todaySummary()
         assertEquals(summary, vm.state.value.todayUsage)
