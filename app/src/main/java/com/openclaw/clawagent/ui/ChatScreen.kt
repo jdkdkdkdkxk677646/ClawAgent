@@ -17,15 +17,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.automirrored.filled.Stop
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -89,8 +83,8 @@ fun ChatScreen(
                 TextButton(onClick = { showRolePicker = true }) {
                     Text("🎭 ${state.roleLabel}", color = ClawColors.Accent, fontSize = 13.sp)
                 }
-                IconButton(onClick = onOpenSettings) {
-                    Icon(Icons.Filled.Settings, "设置", tint = ClawColors.TextSecondary)
+                TextButton(onClick = onOpenSettings) {
+                    Text("⚙️", fontSize = 16.sp)
                 }
             }
         },
@@ -255,7 +249,7 @@ private fun InputBar(
             shape = RoundedCornerShape(12.dp),
             maxLines = 4,
         )
-        IconButton(
+        TextButton(
             onClick = {
                 if (state.isSending) {
                     onStop()
@@ -265,11 +259,11 @@ private fun InputBar(
                 }
             },
         ) {
-            if (state.isSending) {
-                Icon(Icons.AutoMirrored.Filled.Stop, "停止", tint = ClawColors.Danger)
-            } else {
-                Icon(Icons.AutoMirrored.Filled.Send, "发送", tint = ClawColors.Accent)
-            }
+            Text(
+                if (state.isSending) "⏹" else "➤",
+                fontSize = 18.sp,
+                color = if (state.isSending) ClawColors.Danger else ClawColors.Accent,
+            )
         }
     }
 }
@@ -307,8 +301,7 @@ fun BranchPickerDialog(
                     }
                 }
                 TextButton(onClick = onNewBranch) {
-                    Icon(Icons.Filled.Add, null, tint = ClawColors.Accent)
-                    Text("新建分支", color = ClawColors.Accent)
+                    Text("＋ 新建分支", color = ClawColors.Accent)
                 }
             }
         },
