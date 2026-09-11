@@ -80,7 +80,7 @@ class ConversationStorage(context: Context) {
         return branches to messages
     }
 
-    private fun loadFromRoom(): Pair<List<ConversationBranch>, String>? {
+    private suspend fun loadFromRoom(): Pair<List<ConversationBranch>, String>? {
         val dao = db.conversationDao()
         val branchRows = dao.branches()
         if (branchRows.isEmpty()) return null
