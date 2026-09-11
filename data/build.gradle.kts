@@ -34,6 +34,14 @@ android {
     }
 }
 
+// 失败时在 CI 日志里直接吐出 expected/actual（ ComparisonFailure 全文）。
+tasks.withType<Test>().configureEach {
+    testLogging {
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        events("failed")
+    }
+}
+
 dependencies {
     api("androidx.room:room-runtime:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
