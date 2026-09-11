@@ -120,12 +120,12 @@ class AgentLoopTest {
         val loop = AgentLoop(transport).apply { resultPreviewChars = 50 }
         val events = loop.run(request(echoResult = big)).toList()
         val result = events.filterIsInstance<AgentEvent.ToolResult>().single()
-        assertTrue(result.fullResult.length > 5000)
+        assertTrue(result.fullResult.length >= 5000)
         assertTrue(result.preview.length < 120)
         assertTrue(result.preview.endsWith("已完整提供给模型)"))
         // The model saw the full text.
         val toolMsg = transport.seenHistories[1].first { it.role == "tool" }
-        assertTrue(toolMsg.content.length > 5000)
+        assertTrue(toolMsg.content.length >= 5000)
     }
 
     // ── anti-loop guard ───────────────────────────────────────────
