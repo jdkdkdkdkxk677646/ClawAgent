@@ -71,9 +71,9 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ "${{ steps.ks.outputs.present }}" = "true" ]; then
-            KEYSTORE_FILE=keystore/release.keystore gradle assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/release_build.log
+            KEYSTORE_FILE=keystore/release.keystore gradle assembleRelease --no-daemon --stacktrace
           else
-            gradle assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/release_build.log
+            gradle assembleRelease --no-daemon --stacktrace
           fi
 
       - name: Upload release APK artifact
