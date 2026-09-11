@@ -157,6 +157,7 @@ class ChatServiceTest {
                 model = "test-model",
                 history = listOf(ChatService.Message("user", "hi")),
                 stream = stream,
+                tools = null,
             )
             .toList()
     }
