@@ -192,11 +192,11 @@ class ChatViewModelTest {
         vm.onIntent(ChatIntent.SendMessage("hi"))
         // user message lands synchronously
         assertEquals("hi", vm.state.value.messages.first().content)
-        assertTrue(vm.state.value.isSending)
 
-        // Poll for the final snapshot — the last delta lands on a worker
-        // thread and isSending flips on the resume, so a single read can
-        // race the tail write (observed once on CI).
+        // Poll for the final snapshot. Under an Unconfined main the whole
+        // turn can inline inside onIntent (then isSending is already false
+        // here), or resume on a worker thread — either way the END state is
+        // the contract; asserting the transient flag was flaky by design.
         awaitUntil {
             !vm.state.value.isSending &&
                 vm.state.value.messages.map { it.content } == listOf("hi", "你好，Claw")
