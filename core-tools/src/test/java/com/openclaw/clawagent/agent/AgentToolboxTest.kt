@@ -12,7 +12,7 @@ import java.nio.file.Files
 class AgentToolboxTest {
 
     private fun coreToolbox(): AgentToolbox =
-        AgentToolbox.core(Files.createTempDirectory("claw_toolbox_test").toFile())
+        Toolsets.core(Files.createTempDirectory("claw_toolbox_test").toFile())
 
     @Test
     fun `core toolbox registers the expected pure tools`() {

@@ -11,8 +11,8 @@ android {
         applicationId = "com.openclaw.clawagent"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "3.0.0"
+        versionCode = 9
+        versionName = "4.0.0-alpha.1"
     }
 
     signingConfigs {
@@ -64,6 +64,9 @@ android {
 }
 
 dependencies {
+    // v4.0 架构手术:领域层与工具层下沉为纯 Kotlin module。
+    implementation(project(":core-agent"))
+    implementation(project(":core-tools"))
     implementation("androidx.core:core-ktx:1.12.0")
     // Photo Picker (PickVisualMedia) needs the activity 1.7+ result APIs.
     implementation("androidx.activity:activity-ktx:1.8.2")

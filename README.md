@@ -146,6 +146,18 @@ APK 输出路径:`app/build/outputs/apk/debug/app-debug.apk`
 
 本项目的部分功能由多个 AI 并行开发:`tasks/BOARD.md` 是任务看板,每张任务卡划定**文件白名单**保证互不冲突,流程是"领任务(claimed)→ 交付(done)→ 填表"。v3.0.0 的提醒持久化、Markdown 增强、服务商预设、对抗测试 36 例即由 4 个 AI 并行交付。想参与?挑一张 `todo` 卡。
 
+## 架构(v4.0 起)
+
+v4.0 开始绞杀式重构——领域层下沉为纯 Kotlin module,**文件白名单从纪律变成物理边界**:
+
+```
+:app          UI(View 体系,后续阶段换 Compose)+ Android 工具 + 会话存储
+:core-agent   纯 JVM:AgentLoop(ReAct 循环)+ OpenAI 协议序列化 + SSE 解析 + 传输接口 + 工具注册表 + 用量台账
+:core-tools   纯 JVM:六只纯工具爪子(计算器/时钟/笔记/抓取/搜索/规划)
+```
+
+依赖方向:app → core-agent ← core-tools。**`:core-agent` 与 `:core-tools` 禁止任何 `android.*` import**(CI 强制),因此 agent 循环现在可以 100% 纯 JVM 单元测试(`AgentLoopTest` 用 fake transport 覆盖 15 轮循环、工具降级、防死循环守卫)。后续阶段:数据层 Room/DataStore、UI 层 Compose。
+
 ## License
 
 MIT(见 [LICENSE](LICENSE))

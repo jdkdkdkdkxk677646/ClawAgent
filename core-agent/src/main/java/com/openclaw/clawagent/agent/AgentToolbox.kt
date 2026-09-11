@@ -1,9 +1,7 @@
 package com.openclaw.clawagent.agent
 
-import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 
 /**
  * AgentToolbox — the registry that turns Claw into an agent. Holds the set
@@ -13,10 +11,10 @@ import java.io.File
  *  - [requestJson] builds the `tools` array for the chat completions body;
  *  - [execute] dispatches a model-issued call back into the right tool.
  *
- * Two factory sets:
- *  - [core]: framework-free tools only (JVM unit tests, demo builds);
- *  - [forAndroid]: the full claw — adds everything that touches the
- *    Android framework (device info, clipboard, notifications, ...).
+ * Lives in the pure-JVM `:core-agent` module: the registry itself knows
+ * nothing about Android or about which concrete tools exist. The factories
+ * that assemble concrete toolsets live where their dependencies live —
+ * `Toolsets.core()` in `:core-tools`, `AgentWiring.forAndroid()` in `:app`.
  */
 class AgentToolbox(private val tools: List<AgentTool>) {
 
@@ -61,40 +59,4 @@ class AgentToolbox(private val tools: List<AgentTool>) {
      */
     fun filtered(enabledNames: Collection<String>): AgentToolbox =
         AgentToolbox(tools.filter { it.name in enabledNames })
-
-    companion object {
-
-        /**
-         * Framework-free toolset: math, clock, notes (+search), web search,
-         * http fetch and planning. [notesDir] must be provided (tests pass a
-         * temp dir).
-         */
-        fun core(notesDir: File): AgentToolbox = AgentToolbox(
-            listOf(
-                CalculatorTool(),
-                CurrentTimeTool(),
-                NoteTool(notesDir),
-                HttpRequestTool(),
-                WebSearchTool(),
-                PlanTool(),
-            )
-        )
-
-        /** The full claw: core tools + everything that needs the framework. */
-        fun forAndroid(context: Context): AgentToolbox = AgentToolbox(
-            listOf(
-                CalculatorTool(),
-                CurrentTimeTool(),
-                NoteTool(File(context.filesDir, "agent_notes")),
-                HttpRequestTool(),
-                WebSearchTool(),
-                PlanTool(),
-                DeviceInfoTool(context.applicationContext),
-                ClipboardTool(context.applicationContext),
-                NotificationTool(context.applicationContext),
-                OpenUrlTool(context.applicationContext),
-                ReminderTool(context.applicationContext),
-            )
-        )
-    }
 }

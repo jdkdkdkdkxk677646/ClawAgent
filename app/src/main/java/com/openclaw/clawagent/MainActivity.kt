@@ -22,7 +22,10 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.openclaw.clawagent.agent.AgentDirective
-import com.openclaw.clawagent.agent.AgentToolbox
+import com.openclaw.clawagent.agent.AgentEvent
+import com.openclaw.clawagent.agent.AgentLoop
+import com.openclaw.clawagent.agent.AgentRequest
+import com.openclaw.clawagent.agent.AgentWiring
 import com.openclaw.clawagent.conversation.BranchMessage
 import com.openclaw.clawagent.conversation.ConversationBranch
 import com.openclaw.clawagent.conversation.ConversationStorage
@@ -61,8 +64,14 @@ class MainActivity : AppCompatActivity() {
     // initialized. Provider-reported usage lands in the daily ledger as a
     // side effect of every request (agent-loop rounds count individually).
     private val chatService: ChatService by lazy {
-        ChatService(usageTracker = UsageTracker(prefs.usageStore()))
+        ChatService(usageTracker = UsageTracker(prefs.usageStore())).apply {
+            debugLog = { msg -> android.util.Log.d("ChatService", msg) }
+        }
     }
+
+    // The ReAct loop now lives in :core-agent (pure JVM); the Activity only
+    // collects AgentEvents and paints them into the chat bubble.
+    private val agentLoop by lazy { AgentLoop(chatService) }
     private val healthChecker = ProviderHealthChecker()
     private val healthCache = ProviderHealthCache()
 
@@ -206,7 +215,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = SecurePrefs(this)
-        toolbox = AgentToolbox.forAndroid(applicationContext)
+        toolbox = AgentWiring.forAndroid(applicationContext)
         storage = ConversationStorage(this)
         tree = ConversationTree()
         val loaded = storage.load()
@@ -480,11 +489,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * The agent loop: stream a model reply; if the model requests tool calls
-     * (OpenAI function calling), execute them locally, feed the results back
-     * as `role:"tool"` messages and continue — up to [MAX_TOOL_ROUNDS] model
-     * rounds per user turn. The chat bubble shows every tool invocation and
-     * its result inline, then the model's final answer streams below it.
+     * The agent loop itself lives in :core-agent ([AgentLoop]) and is unit
+     * tested there against a fake transport. This method is now a thin UI
+     * adapter: build the request, collect AgentEvents, paint the bubble.
      */
     private suspend fun runAgentTurn(
         initialHistory: List<ChatService.Message>,
@@ -493,114 +500,72 @@ class MainActivity : AppCompatActivity() {
         apiKey: String,
         model: String,
     ) {
-        val conversation = initialHistory.toMutableList()
-        val toolsJson = if (prefs.agentMode) activeToolbox().requestJson() else null
+        val request = AgentRequest(
+            endpoint = prefs.endpoint,
+            apiKey = apiKey,
+            model = model,
+            history = initialHistory,
+            stream = prefs.streamOutput,
+            tools = if (prefs.agentMode) activeToolbox().requestJson() else null,
+            maxRounds = MAX_TOOL_ROUNDS,
+            toolset = activeToolbox(),
+        )
 
-        var round = 0
-        while (true) {
-            round++
-            var roundContent = ""   // raw model text produced this round
-            var requestedCalls: List<ChatService.ToolCall>? = null
-            var failed = false
-
-            chatService.streamChat(
-                endpoint = prefs.endpoint,
-                apiKey = apiKey,
-                model = model,
-                history = conversation,
-                stream = prefs.streamOutput,
-                tools = toolsJson,
-            ).collect { event ->
-                when (event) {
-                    is ChatService.StreamEvent.Usage -> {
-                        // Accounting already happened inside ChatService
-                        // (usageTracker); the event is here for future UI.
+        agentLoop.run(request).collect { event ->
+            when (event) {
+                is AgentEvent.Delta -> {
+                    assistantMsg.content += event.text
+                    adapter.notifyItemChanged(assistantIndex)
+                    scrollToBottom()
+                }
+                is AgentEvent.ToolCalls -> {
+                    // Transparent tool trace in the bubble.
+                    if (assistantMsg.content.isNotEmpty() &&
+                        !assistantMsg.content.endsWith("\n")
+                    ) {
+                        assistantMsg.content += "\n\n"
                     }
-                    is ChatService.StreamEvent.Delta -> {
-                        roundContent += event.text
-                        assistantMsg.content += event.text
-                        adapter.notifyItemChanged(assistantIndex)
-                        scrollToBottom()
+                    event.calls.forEach { call ->
+                        assistantMsg.content += "🔧 ${call.name}(${call.arguments})\n"
                     }
-                    is ChatService.StreamEvent.ToolCalls -> {
-                        requestedCalls = event.calls
-                        // Transparent tool trace in the bubble.
-                        if (assistantMsg.content.isNotEmpty() &&
-                            !assistantMsg.content.endsWith("\n")
-                        ) {
-                            assistantMsg.content += "\n\n"
-                        }
-                        event.calls.forEach { call ->
-                            assistantMsg.content += "🔧 ${call.name}(${call.arguments})\n"
-                        }
-                        adapter.notifyItemChanged(assistantIndex)
-                        scrollToBottom()
+                    adapter.notifyItemChanged(assistantIndex)
+                    scrollToBottom()
+                }
+                is AgentEvent.ToolResult -> {
+                    // Bubble shows the loop's preview; the full result always
+                    // went back to the model.
+                    assistantMsg.content += "↳ " + event.preview + "\n"
+                    adapter.notifyItemChanged(assistantIndex)
+                    scrollToBottom()
+                }
+                is AgentEvent.Usage -> {
+                    // Accounting already happened inside ChatService
+                    // (usageTracker); the event is here for future UI.
+                }
+                is AgentEvent.RoundLimitReached -> {
+                    assistantMsg.content +=
+                        "\n\n⚠️ 已连续调用工具 ${event.rounds} 轮,为避免死循环已停止。"
+                    adapter.notifyItemChanged(assistantIndex)
+                }
+                is AgentEvent.Error -> {
+                    // Keep whatever already streamed in — replacing it would
+                    // throw away tokens the user just paid for.
+                    assistantMsg.content = if (assistantMsg.content.isEmpty()) {
+                        "⚠️ ${event.message}"
+                    } else {
+                        "${assistantMsg.content}\n\n⚠️ ${event.message}"
                     }
-                    is ChatService.StreamEvent.Error -> {
-                        failed = true
-                        // Keep whatever already streamed in — replacing it
-                        // would throw away paid tokens the user just paid for.
-                        assistantMsg.content = if (assistantMsg.content.isEmpty()) {
-                            "⚠️ ${event.message}"
-                        } else {
-                            "${assistantMsg.content}\n\n⚠️ ${event.message}"
-                        }
-                        adapter.notifyItemChanged(assistantIndex)
-                    }
-                    ChatService.StreamEvent.Done -> {
-                        scrollToBottom()
-                    }
+                    adapter.notifyItemChanged(assistantIndex)
+                }
+                AgentEvent.Done -> {
+                    assistantMsg.content += "\n"
+                    scrollToBottom()
                 }
             }
-
-            if (failed) return
-            val calls = requestedCalls
-            if (calls.isNullOrEmpty()) return   // final answer complete
-
-            if (round >= MAX_TOOL_ROUNDS) {
-                assistantMsg.content += "\n\n⚠️ 已连续调用工具 $round 轮,为避免死循环已停止。"
-                adapter.notifyItemChanged(assistantIndex)
-                return
-            }
-
-            // Record the tool-call request, then execute each tool locally.
-            conversation += ChatService.Message(
-                role = "assistant",
-                content = roundContent,
-                toolCalls = calls,
-            )
-            for (call in calls) {
-                val result = withContext(Dispatchers.Default) {
-                    // Dispatch through the filtered set: a tool the user
-                    // turned off resolves to "未找到" instead of executing.
-                    runCatching { activeToolbox().execute(call.name, call.arguments) }
-                        .getOrElse { "工具执行失败:${it.message}" }
-                }
-                // Bubble shows a short preview; the full result always goes
-                // back to the model — long fetches would flood the chat UI.
-                assistantMsg.content += "↳ " + previewOf(result) + "\n"
-                adapter.notifyItemChanged(assistantIndex)
-                scrollToBottom()
-                conversation += ChatService.Message(
-                    role = "tool",
-                    content = result,
-                    toolCallId = call.id,
-                    toolName = call.name,
-                )
-            }
-            assistantMsg.content += "\n"
         }
     }
 
-    /** Tool-result preview for the chat bubble: short head + full-size note. */
-    private fun previewOf(result: String): String =
-        if (result.length <= RESULT_PREVIEW_CHARS) {
-            result
-        } else {
-            result.take(RESULT_PREVIEW_CHARS) +
-                "…(共 ${result.length} 字符,已完整提供给模型)"
-        }
-
+    /** Tool-result preview now lives in AgentLoop (core-agent). */
     private fun updateSendButton() {
         if (isSending) {
             binding.sendBtn.setImageResource(R.drawable.ic_stop)
@@ -1074,7 +1039,6 @@ class MainActivity : AppCompatActivity() {
 
         /** Cap on model rounds per user turn in agent mode (tool-call loop). */
         private const val MAX_TOOL_ROUNDS = 15
-        private const val RESULT_PREVIEW_CHARS = 300
         private const val MAX_IMAGES = 3
         private const val MAX_IMAGE_BYTES = 4 * 1024 * 1024
 

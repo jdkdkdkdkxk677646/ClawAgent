@@ -1,6 +1,5 @@
 package com.openclaw.clawagent.provider
 
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.channels.awaitClose
@@ -45,7 +44,12 @@ class ChatService(
      * which keeps legacy behavior byte-for-byte.
      */
     private val usageTracker: UsageTracker? = null,
-) {
+) : ChatTransport {
+    /**
+     * Injectable log sink replacing `android.util.Log` (this module is pure
+     * JVM). The app wires `Log::d`-style output in; tests leave the no-op.
+     */
+    var debugLog: (String) -> Unit = {}
 
     /**
      * Send a chat request and stream the assistant reply.
@@ -216,7 +220,7 @@ class ChatService(
                     frame.toolCallFragments?.let { toolAccumulator.feed(it) }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "stream interrupted", e)
+                debugLog("stream interrupted: ${e.message}")
                 scope.trySend(StreamEvent.Error("流中断:${e.message}", e))
                 scope.close()
                 return@use
@@ -336,7 +340,6 @@ class ChatService(
     }
 
     companion object {
-        private const val TAG = "ChatService"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
