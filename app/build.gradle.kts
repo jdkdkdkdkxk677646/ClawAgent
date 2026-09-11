@@ -59,7 +59,7 @@ android {
 
     composeOptions {
         // Kotlin 1.9.20 的配套编译器
-        kotlinCompilerExtensionVersion = "1.5.8"
+        kotlinCompilerExtensionVersion = "1.5.4"
     }
 
     // Robolectric to load Android resources on the JVM (MainActivityTest etc.)
