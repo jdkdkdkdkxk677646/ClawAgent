@@ -53,6 +53,13 @@ android {
 
     buildFeatures {
         viewBinding = true
+        // v4.0 Phase 3:Compose UI
+        compose = true
+    }
+
+    composeOptions {
+        // Kotlin 1.9.20 的配套编译器
+        kotlinCompilerExtensionVersion = "1.5.8"
     }
 
     // Required by Robolectric to load Android resources on the JVM.
@@ -86,6 +93,14 @@ dependencies {
     // Unit tests (JVM). org.json:json shadows the throwing Android stub so
     // SseStreamParser tests can parse real JSON on the JVM.
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240205")
+    // Robolectric so MainActivityTest can use ApplicationProvider and the
+    // real SharedPreferences / Context on the JVM (no emulator needed).
+    testImplementation("org.robolectric:robolectric:4.12.1")
+    testImplementation("androidx.test:core:1.5.0")
+    testImplementation("androidx.test.ext:junit:1.1.5")
+}
+unit:junit:4.13.2")
     testImplementation("org.json:json:20240205")
     // Robolectric so MainActivityTest can use ApplicationProvider and the
     // real SharedPreferences / Context on the JVM (no emulator needed).

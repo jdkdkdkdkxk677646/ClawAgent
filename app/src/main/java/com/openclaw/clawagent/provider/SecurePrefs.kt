@@ -154,6 +154,7 @@ class SecurePrefs(context: Context) {
         private const val KEY_SYSTEM_PROMPT = "system_prompt"
         private const val KEY_AGENT_MODE = "agent_mode"
         private const val KEY_DISABLED_TOOLS = "disabled_tools"
+        private const val KEY_ROLE_KEY = "role_key"
 
         const val DEFAULT_CONTEXT_LIMIT = 20
 
