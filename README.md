@@ -100,7 +100,7 @@ v4.0 完成了绞杀式重写——UI 换 Compose(MVI 单向数据流),领域层
 
 ```
 :app          Compose UI(ChatScreen + MVI ChatViewModel)+ Android 工具 + Compose 设置对话框
-:core-agent   纯 JVM:AgentLoop(ReAct 循环)+ OpenAI 协议序列化 + SSE 解析 + 传输接口 + 工具注册表 + 用量台账
+:core-agent   纯 JVM:AgentLoop(ReAct 循环)+ OpenAI 协议序列化 + SSE 解析 + 传输接口 + 工具注册表 + 用量台账 + MCP 客户端
 :core-tools   纯 JVM:六只纯工具爪子(计算器/时钟/笔记/抓取/搜索/规划)
 :data         Room 持久化:会话树三表(branches/messages/meta)+ 旧 JSON 自动迁移
 ```
@@ -149,6 +149,7 @@ v4.0 完成了绞杀式重写——UI 换 Compose(MVI 单向数据流),领域层
 - [x] 多 AI 并行协作机制(`tasks/` 看板,v2.2.0 起)
 - [x] **v4.0 重写三阶段:纯 JVM 领域层(:core-agent/:core-tools)、Room 数据层(:data,自动迁移)、Compose UI + MVI(4.0.0)**
 - [x] **v4.1 精细化:存储层全 suspend(Room 事务执行器,主线程零 SQLite)、设置对话框迁 Compose、今日 token 用量 UI、消息列表 DiffUtil 增量刷新**
+- [x] **MCP 接入(v4.2-alpha):Streamable HTTP 客户端,远程 MCP 服务器的工具以 `mcp_` 前缀挂入爪子集(受工具开关约束),设置页可配端点与 Bearer Token**
 - [ ] 消息列表分页(超长会话)
 - [ ] 表格渲染升级为横向滚动视图的 Compose 原生版
 - [ ] 图片输入支持拍照直拍的 Compose 内整合

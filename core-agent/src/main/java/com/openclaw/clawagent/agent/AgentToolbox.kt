@@ -59,4 +59,11 @@ class AgentToolbox(private val tools: List<AgentTool>) {
      */
     fun filtered(enabledNames: Collection<String>): AgentToolbox =
         AgentToolbox(tools.filter { it.name in enabledNames })
+
+    /**
+     * A toolbox with extra claws bolted on — the MCP bridge appends remote
+     * tools at runtime after a successful handshake (v4.2).
+     */
+    fun withTools(extra: List<AgentTool>): AgentToolbox =
+        AgentToolbox(tools + extra)
 }

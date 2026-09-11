@@ -139,6 +139,20 @@ class SecurePrefs(context: Context) {
     fun isApiKeyStored(): Boolean = getApiKey().isNotEmpty()
 
     /**
+     * MCP (Model Context Protocol) remote server endpoint, v4.2. Empty means
+     * "no MCP" — the toolbox is the built-in claws only. A Streamable-HTTP
+     * MCP server URL; tools discovered there ride in with an `mcp_` prefix.
+     */
+    var mcpEndpoint: String
+        get() = plain.getString(KEY_MCP_ENDPOINT, "") ?: ""
+        set(value) = plain.edit().putString(KEY_MCP_ENDPOINT, value).apply()
+
+    /** Optional bearer token for the MCP server (many remote servers require one). */
+    var mcpToken: String
+        get() = plain.getString(KEY_MCP_TOKEN, "") ?: ""
+        set(value) = plain.edit().putString(KEY_MCP_TOKEN, value).apply()
+
+    /**
      * Non-sensitive KV surface for the daily token ledger
      * ([UsageTracker] keys are `usage_tokens_*`-namespaced, so they never
      * collide with the settings keys above). Shares the plain prefs file —
@@ -160,6 +174,8 @@ class SecurePrefs(context: Context) {
         private const val KEY_AGENT_MODE = "agent_mode"
         private const val KEY_DISABLED_TOOLS = "disabled_tools"
         private const val KEY_ROLE_KEY = "role_key"
+        private const val KEY_MCP_ENDPOINT = "mcp_endpoint"
+        private const val KEY_MCP_TOKEN = "mcp_token"
 
         const val DEFAULT_CONTEXT_LIMIT = 20
 

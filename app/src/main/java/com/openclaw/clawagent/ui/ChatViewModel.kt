@@ -46,6 +46,8 @@ data class ChatUiState(
     val stagedImageCount: Int = 0,
     /** 今日 token 台账(UsageTracker.todaySummary()),v4.1 起 UI 展示。 */
     val todayUsage: String = "",
+    /** MCP 远程服务器状态(v4.2):空=未配置,其余为连接结果一行话。 */
+    val mcpStatus: String = "",
 ) {
     val showWelcome: Boolean get() = messages.isEmpty()
     val canSend: Boolean get() = !isSending && !isLoading
@@ -105,6 +107,10 @@ class ChatViewModel(
     private var pendingPhotoFile: File? = null
     private var sendJob: Job? = null
 
+    // ── MCP(v4.2):远程爪子,握手成功后才进工具清单 ──────────────────
+    @Volatile private var mcpTools: List<com.openclaw.clawagent.agent.AgentTool> = emptyList()
+    @Volatile private var mcpClient: com.openclaw.clawagent.mcp.McpClient? = null
+
     init {
         // v4.1:加载改异步(Room suspend DAO)。加载完成前 isLoading=true,
         // 发送与分支操作被 canSend=false 挡住,避免空树覆盖磁盘的竞态。
@@ -117,7 +123,48 @@ class ChatViewModel(
             syncMessages()
             _state.value = _state.value.copy(isLoading = false)
             publish()
+            connectMcpIfConfigured()
         }
+    }
+
+    /**
+     * 配置了 MCP 服务器就握手并把远程工具挂进爪子集。失败静默降级:
+     * 内置工具照常可用,状态行告知用户原因。
+     */
+    private fun connectMcpIfConfigured() {
+        val endpoint = prefs.mcpEndpoint.trim()
+        if (endpoint.isEmpty()) {
+            disconnectMcp()
+            return
+        }
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                mcpClient?.close()
+                val client = com.openclaw.clawagent.mcp.McpClient(
+                    endpoint = endpoint,
+                    authToken = prefs.mcpToken.trim().ifEmpty { null },
+                )
+                client.connect()
+                val defs = client.listTools()
+                mcpClient = client
+                mcpTools = com.openclaw.clawagent.mcp.McpToolBridge.bridgeAll(client, defs)
+                _state.value = _state.value.copy(
+                    mcpStatus = "🔌 MCP 已连接:${client.serverInfo.ifEmpty { endpoint }} · ${defs.size} 只远程爪子"
+                )
+            } catch (e: Exception) {
+                mcpClient = null
+                mcpTools = emptyList()
+                _state.value = _state.value.copy(
+                    mcpStatus = "🔌 MCP 连接失败:${e.message ?: e.javaClass.simpleName}(内置工具不受影响)"
+                )
+            }
+        }
+    }
+
+    private fun disconnectMcp() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { mcpClient?.close() }
+        mcpClient = null
+        mcpTools = emptyList()
     }
 
     // ── intents ──────────────────────────────────────────────────
@@ -139,8 +186,9 @@ class ChatViewModel(
         }
     }
 
-    /** 设置对话框(View 版,Phase 4 迁 Compose)保存后同步 UI。 */
+    /** 设置对话框保存后同步 UI;MCP 配置变化时重连远程爪子。 */
     fun refreshFromPrefs() {
+        connectMcpIfConfigured()
         publish()
     }
 
@@ -348,8 +396,13 @@ class ChatViewModel(
         }
     }
 
-    private fun activeToolbox() =
-        toolbox.filtered(toolbox.names.filter { prefs.isToolEnabled(it) })
+    private fun activeToolbox(): com.openclaw.clawagent.agent.AgentToolbox {
+        val enabled = toolbox.names.filter { prefs.isToolEnabled(it) }
+        val base = toolbox.filtered(enabled)
+        // 远程爪子:同样受 per-tool 开关约束(mcp_ 前缀名),握手失败时为空。
+        val remote = mcpTools.filter { prefs.isToolEnabled(it.name) }
+        return if (remote.isEmpty()) base else base.withTools(remote)
+    }
 
     // ── branches / roles / copy ──────────────────────────────────
 
@@ -504,6 +557,7 @@ class ChatViewModel(
             roleKey = prefs.roleKey,
             roleLabel = SystemPromptManager.getRoleDisplayName(prefs.roleKey),
             stagedImageCount = pendingImages.size,
+            mcpStatus = if (prefs.mcpEndpoint.isBlank()) "" else s.mcpStatus,
         )
     }
 

@@ -11,8 +11,8 @@ android {
         applicationId = "com.openclaw.clawagent"
         minSdk = 26
         targetSdk = 34
-        versionCode = 12
-        versionName = "4.1.1"
+        versionCode = 13
+        versionName = "4.2.0-alpha.1"
     }
 
     signingConfigs {

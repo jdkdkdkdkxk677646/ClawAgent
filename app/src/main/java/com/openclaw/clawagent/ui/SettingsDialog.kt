@@ -102,6 +102,10 @@ fun SettingsDialog(
     var disabledTools by remember { mutableStateOf(prefs.disabledTools) }
     var showToolPicker by remember { mutableStateOf(false) }
 
+    // v4.2:远程 MCP 服务器(可选)。
+    var mcpEndpoint by remember { mutableStateOf(prefs.mcpEndpoint) }
+    var mcpToken by remember { mutableStateOf(prefs.mcpToken) }
+
     var health by remember { mutableStateOf(healthCache.get(current.id)) }
     var checking by remember { mutableStateOf(false) }
 
@@ -269,6 +273,29 @@ fun SettingsDialog(
                         .heightIn(min = 80.dp),
                     minLines = 3,
                 )
+
+                // ── MCP 远程服务器(可选,v4.2)───────────────────────
+                OutlinedTextField(
+                    value = mcpEndpoint,
+                    onValueChange = { mcpEndpoint = it },
+                    label = { Text("🔌 MCP 服务器 URL(可选)") },
+                    placeholder = { Text("https://…/mcp", color = ClawColors.TextSecondary, fontSize = 13.sp) },
+                    colors = dialogFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                Text(
+                    "远程工具将以 mcp_ 前缀进入 Agent 爪子集(受工具开关约束)。留空关闭。",
+                    color = ClawColors.TextSecondary, fontSize = 11.sp,
+                )
+                OutlinedTextField(
+                    value = mcpToken,
+                    onValueChange = { mcpToken = it },
+                    label = { Text("MCP Bearer Token(可选)") },
+                    colors = dialogFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
             }
         },
         confirmButton = {
@@ -284,6 +311,8 @@ fun SettingsDialog(
                 prefs.systemPrompt = systemPrompt.trim()
                 prefs.agentMode = agentMode
                 prefs.disabledTools = disabledTools
+                prefs.mcpEndpoint = mcpEndpoint.trim()
+                prefs.mcpToken = mcpToken.trim()
                 onSaved()
                 onDismiss()
             }) { Text("保存") }
