@@ -100,7 +100,7 @@ class ChatViewModelTest {
      */
     private class Harness(
         val transport: FakeTransport,
-        seed: (ConversationStorage, SecurePrefs) -> Unit = { _, _ -> },
+        seed: suspend (ConversationStorage, SecurePrefs) -> Unit = { _, _ -> },
     ) {
         private val context: Context = ApplicationProvider.getApplicationContext()
 
@@ -113,7 +113,9 @@ class ChatViewModelTest {
         val usageTracker = UsageTracker(usageStore).apply { record(7, 3, 10) }
 
         init {
-            seed(storage, prefs)
+            // Storage.save is suspend; nesting runBlocking here is fine — the
+            // harness is built inside the test's runBlocking anyway.
+            runBlocking { seed(storage, prefs) }
         }
 
         // Mirrors ChatViewModel.factory wiring: the tracker rides ChatService.
