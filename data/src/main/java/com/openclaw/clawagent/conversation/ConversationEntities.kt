@@ -1,6 +1,7 @@
 package com.openclaw.clawagent.conversation
 
 import androidx.room.Entity
+import androidx.room.PrimaryKey
 
 /**
  * Room representation of one branch of the conversation tree.
