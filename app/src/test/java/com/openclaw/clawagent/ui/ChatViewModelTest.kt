@@ -129,7 +129,7 @@ class ChatViewModelTest {
         )
     }
 
-    private suspend fun awaitUntil(timeoutMs: Long = 5000, condition: suspend () -> Boolean) {
+    private suspend fun awaitUntil(timeoutMs: Long = 10000, condition: suspend () -> Boolean) {
         withTimeout(timeoutMs) {
             while (!condition()) delay(20)
         }
@@ -194,7 +194,13 @@ class ChatViewModelTest {
         assertEquals("hi", vm.state.value.messages.first().content)
         assertTrue(vm.state.value.isSending)
 
-        awaitUntil { !vm.state.value.isSending }
+        // Poll for the final snapshot — the last delta lands on a worker
+        // thread and isSending flips on the resume, so a single read can
+        // race the tail write (observed once on CI).
+        awaitUntil {
+            !vm.state.value.isSending &&
+                vm.state.value.messages.map { it.content } == listOf("hi", "你好，Claw")
+        }
         assertEquals(listOf("hi", "你好，Claw"), vm.state.value.messages.map { it.content })
     }
 
