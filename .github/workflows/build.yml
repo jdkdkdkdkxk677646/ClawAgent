@@ -45,8 +45,8 @@ jobs:
           java -version
 
       - name: Run Unit Tests
-        # 聚合跑:v3.1 之前只有 :app;v4.0 起还有 :core-agent / :core-tools 两个纯 JVM module。
-        run: gradle :core-agent:test :core-tools:test :app:testDebugUnitTest --no-daemon --stacktrace
+        # 聚合跑:v3.1 之前只有 :app;v4.0 起还有 :core-agent / :core-tools / :data。
+        run: gradle :core-agent:test :core-tools:test :data:testDebugUnitTest :app:testDebugUnitTest --no-daemon --stacktrace
 
       - name: Upload Unit Test Report
         if: always()

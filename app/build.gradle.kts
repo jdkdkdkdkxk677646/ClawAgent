@@ -67,6 +67,8 @@ dependencies {
     // v4.0 架构手术:领域层与工具层下沉为纯 Kotlin module。
     implementation(project(":core-agent"))
     implementation(project(":core-tools"))
+    // v4.0 Phase 2:会话存储 Room 化(conversation 包已迁入 :data)。
+    implementation(project(":data"))
     implementation("androidx.core:core-ktx:1.12.0")
     // Photo Picker (PickVisualMedia) needs the activity 1.7+ result APIs.
     implementation("androidx.activity:activity-ktx:1.8.2")
