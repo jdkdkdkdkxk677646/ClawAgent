@@ -4,16 +4,19 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.app.Service
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.LifecycleService
-import androidx.lifecycle.lifecycleScope
 import com.openclaw.clawagent.MainActivity
 import com.openclaw.clawagent.agent.AgentEvent
 import com.openclaw.clawagent.agent.AgentRequest
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
@@ -64,8 +67,16 @@ class AgentTaskService : LifecycleService() {
         val branchId: String,
     )
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    override fun onBind(intent: Intent?) = null
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        super.onStartCommand(intent, flags, startId)
         val task = pending ?: run {
             stopSelf()
             return START_NOT_STICKY
@@ -76,7 +87,7 @@ class AgentTaskService : LifecycleService() {
         ChatRepository.backgroundTaskRunning = true
         startForeground(FOREGROUND_ID, progressNotification(task.userDisplay))
 
-        lifecycleScope.launch {
+        scope.launch {
             val outcome = runTurn(task)
             fileResult(task, outcome)
             ChatRepository.backgroundTaskRunning = false
