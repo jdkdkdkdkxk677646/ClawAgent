@@ -79,7 +79,8 @@ class ConversationStorageTest {
         legacy.edit().putString(
             "tree",
             legacyJson(
-                "root-1",
+                // 激活分支是 child-1 —— 迁移后 load() 必须如实还原它
+                "child-1",
                 legacyBranch("root-1", "历史对话", null, 0, msg("user", "旧消息一")) + "," +
                     legacyBranch("child-1", "分叉", "root-1", 1, msg("user", "分支消息")),
             ),
