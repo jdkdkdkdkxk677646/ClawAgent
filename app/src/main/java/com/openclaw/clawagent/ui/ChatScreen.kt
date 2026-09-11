@@ -102,7 +102,7 @@ fun ChatScreen(
                 .imePadding(),
         ) {
             if (state.showWelcome) {
-                WelcomeBlock()
+                WelcomeBlock(modifier = Modifier.weight(1f))
             } else {
                 // 消息列表委托给调用者注入的 RecyclerView(复用 MessageAdapter
                 // 的 Markdown/表格/长按管线,零 parity 损失)。
@@ -193,10 +193,9 @@ fun ChatScreen(
 }
 
 @Composable
-private fun WelcomeBlock() {
+private fun WelcomeBlock(modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
-            .weight(1f)
+        modifier = modifier
             .fillMaxWidth(),
         contentAlignment = Alignment.Center,
     ) {
@@ -214,6 +213,7 @@ private fun WelcomeBlock() {
 }
 
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun InputBar(
     state: ChatUiState,

@@ -3,6 +3,8 @@ package com.openclaw.clawagent.ui
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.openclaw.clawagent.ChatMessage
 import com.openclaw.clawagent.ImageAttachments
 import com.openclaw.clawagent.SystemPromptManager
@@ -56,7 +58,6 @@ sealed class ChatIntent {
     data class DeleteBranch(val branchId: String) : ChatIntent()
     data class ForkAt(val position: Int) : ChatIntent()
     data class SetRole(val roleKey: String) : ChatIntent()
-    data class StageImage(val uri: Uri) : ChatIntent()
     data object ClearStagedImages : ChatIntent()
     data class CopyAt(val position: Int) : ChatIntent()
 }
@@ -64,11 +65,11 @@ sealed class ChatIntent {
 /** 一次性副作用,由 Activity 消费(Toast/选择器/剪贴板/分享)。 */
 sealed class ChatEffect {
     data class Toast(val message: String) : ChatEffect()
-    data class LaunchGalleryPicker : ChatEffect()
+    data object LaunchGalleryPicker : ChatEffect()
     data class LaunchCamera(val uri: Uri, val tempFile: File) : ChatEffect()
     data class CopyToClipboard(val text: String) : ChatEffect()
-    data class OpenSettings : ChatEffect()
-    data class ScrollToBottom : ChatEffect()
+    data object OpenSettings : ChatEffect()
+    data object ScrollToBottom : ChatEffect()
 }
 
 class ChatViewModel(
@@ -116,7 +117,6 @@ class ChatViewModel(
             is ChatIntent.DeleteBranch -> deleteBranch(intent.branchId)
             is ChatIntent.ForkAt -> forkAt(intent.position)
             is ChatIntent.SetRole -> setRole(intent.roleKey)
-            is ChatIntent.StageImage -> stageImage(intent.uri)
             ChatIntent.ClearStagedImages -> {
                 pendingImages.clear()
                 publish()

@@ -89,6 +89,11 @@ class SecurePrefs(context: Context) {
         get() = plain.getBoolean(KEY_AGENT_MODE, false)
         set(value) = plain.edit().putBoolean(KEY_AGENT_MODE, value).apply()
 
+    /** 当前选中的角色 key(SystemPromptManager.Role.key),v4.0 起持久化。 */
+    var roleKey: String
+        get() = plain.getString(KEY_ROLE_KEY, "general") ?: "general"
+        set(value) = plain.edit().putString(KEY_ROLE_KEY, value).apply()
+
     /**
      * Per-tool kill switches: names from AgentToolbox that the user turned
      * OFF. Empty set = every tool enabled. Checked when building the request
