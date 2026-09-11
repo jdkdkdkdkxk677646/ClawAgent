@@ -18,6 +18,6 @@ interface ChatTransport {
         model: String,
         history: List<ChatService.Message>,
         stream: Boolean,
-        tools: JSONArray?,
+        tools: JSONArray? = null,
     ): Flow<ChatService.StreamEvent>
 }

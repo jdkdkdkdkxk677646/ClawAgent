@@ -24,7 +24,7 @@ class AgentLoopTest {
     ) : com.openclaw.clawagent.provider.ChatTransport {
         var requests = 0
         val seenHistories = mutableListOf<List<ChatService.Message>>()
-        override fun stream(
+        override fun streamChat(
             endpoint: String,
             apiKey: String,
             model: String,
