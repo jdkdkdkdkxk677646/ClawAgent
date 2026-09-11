@@ -95,6 +95,8 @@ class ChatViewModelTest {
     }
 
     private class Harness(val transport: FakeTransport) {
+        private val context: Context = ApplicationProvider.getApplicationContext()
+
         val prefs = SecurePrefs(context).apply {
             setApiKey("sk-test") // non-empty key → the real agent loop path
         }
@@ -112,7 +114,7 @@ class ChatViewModelTest {
         )
     }
 
-    private suspend fun awaitUntil(timeoutMs: Long = 5000, condition: () -> Boolean) {
+    private suspend fun awaitUntil(timeoutMs: Long = 5000, condition: suspend () -> Boolean) {
         withTimeout(timeoutMs) {
             while (!condition()) delay(20)
         }
