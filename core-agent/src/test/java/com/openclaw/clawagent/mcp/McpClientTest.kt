@@ -208,7 +208,9 @@ class McpClientTest {
     fun `transport failure degrades into error string`() {
         val server = routingServer { method, request ->
             when (method) {
-                "tools/call" -> plain(request).code(500).build()
+                "tools/call" -> plain(request).code(500)
+                    .body("server on fire".toResponseBody("text/plain".toMediaType()))
+                    .build()
                 else -> handshakeOrAccepted(method, request)
             }
         }
@@ -279,7 +281,10 @@ class McpClientTest {
     }
 
     private fun plainAccepted(request: Request): Response =
-        plain(request).code(202).build()
+        // OkHttp 4 requires interceptor responses to carry a body, even 202s.
+        plain(request).code(202)
+            .body("".toResponseBody("application/json".toMediaType()))
+            .build()
 
     private fun plain(request: Request): Response.Builder =
         Response.Builder()
