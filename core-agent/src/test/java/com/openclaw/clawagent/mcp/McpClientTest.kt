@@ -6,12 +6,20 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+
+/** Parse the JSON-RPC payload of a request (file-level so nested classes see it). */
+private fun okioBody(request: Request): JSONObject {
+    val buffer = okio.Buffer()
+    request.body!!.writeTo(buffer)
+    return JSONObject(buffer.readUtf8())
+}
 
 /**
  * Protocol tests for [McpClient], over an interceptor that stands in for the
@@ -245,12 +253,6 @@ class McpClientTest {
 
     // ── helpers ────────────────────────────────────────────────────
 
-    private fun okioBody(request: Request): JSONObject {
-        val buffer = okio.Buffer()
-        request.body!!.writeTo(buffer)
-        return JSONObject(buffer.readUtf8())
-    }
-
     private fun routingServer(route: (method: String, request: Request) -> Response) =
         FakeMcpServer { method, _, request -> route(method, request) }
 
@@ -265,14 +267,14 @@ class McpClientTest {
         plain(request)
             .header("Content-Type", "application/json")
             .apply { session?.let { header("MCP-Session-Id", it) } }
-            .body(reply.toString().toRequestBody("application/json".toMediaType()))
+            .body(reply.toString().toResponseBody("application/json".toMediaType()))
             .build()
 
     private fun sseReply(request: Request, reply: JSONObject): Response {
         val body = "event: message\ndata: ${reply}\n\n"
         return plain(request)
             .header("Content-Type", "text/event-stream")
-            .body(body.toRequestBody("text/event-stream".toMediaType()))
+            .body(body.toResponseBody("text/event-stream".toMediaType()))
             .build()
     }
 
