@@ -312,20 +312,24 @@ class MessageAdapterTableRenderTest {
         adapter.onBindViewHolder(vh, 0)
         assertEquals(1, parser.calls)
 
-        // Second bind: same content — cache hit.
+        // Same content — cache hit.
         adapter.onBindViewHolder(vh, 0)
         assertEquals(1, parser.calls)
 
-        // Third bind: mutated to content B — one new parse.
-        // The streaming scenario is approximated by submitting a new list
-        // with changed content and rebinding; the adapter can't mutate an
-        // already-submitted snapshot in place because DiffUtil does its
-        // own list handling.
-        adapter.onBindViewHolder(vh, 0) // unchanged; still cache hit
+        // Now switch the visible list to content B. The adapter can't
+        // observe a single ChatMessage in place because the data class
+        // is shared with the live model; submitList is the supported way
+        // to change content. We rebind manually because the test-side
+        // holder isn't attached to a RecyclerView, so ListAdapter won't
+        // dispatch the diff on its own.
         adapter.submitList(listOf(ChatMessage("assistant", "beta")))
         shadowOf(Looper.getMainLooper()).idle()
         adapter.onBindViewHolder(vh, 0)
         assertEquals("content change should add exactly one parse", 2, parser.calls)
+
+        // And rebinding "beta" again is a cache hit, so the count stays.
+        adapter.onBindViewHolder(vh, 0)
+        assertEquals(2, parser.calls)
     }
 
     @Test
