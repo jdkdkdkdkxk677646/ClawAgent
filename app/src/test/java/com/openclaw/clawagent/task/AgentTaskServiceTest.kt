@@ -130,8 +130,13 @@ class AgentTaskServiceTest {
     private fun notificationManager(): NotificationManager =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-    private fun notificationIds(): List<Int> =
-        shadowOf(notificationManager()).allNotifications.map { it.id }
+    /**
+     * Whether a notification with [id] is currently posted. The id is the key
+     * passed to `notify(id, notification)` — a [Notification] has no id field,
+     * so the shadow manager must be queried by key.
+     */
+    private fun hasNotification(id: Int): Boolean =
+        shadowOf(notificationManager()).getNotification(id) != null
 
     /** Waits until the turn finished (flag cleared) and its message landed. */
     private suspend fun awaitFinished() = awaitUntil {
@@ -212,8 +217,8 @@ class AgentTaskServiceTest {
         assertTrue(assistantMessages().isNotEmpty())
         // …and the completion notification fires even on failure.
         assertTrue(
-            "expect a completion notification, ids=${notificationIds()}",
-            notificationIds().contains(resultNotificationId),
+            "expect a completion notification",
+            hasNotification(resultNotificationId),
         )
         assertFalse(ChatRepository.backgroundTaskRunning)
     }
@@ -233,17 +238,21 @@ class AgentTaskServiceTest {
         )
         awaitFinished()
 
-        val ids = notificationIds()
-        assertTrue("expect the ongoing foreground notice, ids=$ids", ids.contains(foregroundNotificationId))
-        assertTrue("expect the completion notification, ids=$ids", ids.contains(resultNotificationId))
+        assertTrue(
+            "expect the ongoing foreground notice",
+            hasNotification(foregroundNotificationId),
+        )
+        assertTrue(
+            "expect the completion notification",
+            hasNotification(resultNotificationId),
+        )
 
-        val nm = notificationManager()
-        val done = shadowOf(nm).getNotification(resultNotificationId)
+        val done = shadowOf(notificationManager()).getNotification(resultNotificationId)
         assertNotNull("completion notification must exist", done)
-        assertEquals("✅ 后台任务完成", done!!.extras.getString(Notification.EXTRA_TITLE))
+        assertEquals("✅ 后台任务完成", done!!.extras?.getString(Notification.EXTRA_TITLE))
         assertTrue(
             "completion text carries the result preview",
-            done.extras.getString(Notification.EXTRA_TEXT)?.contains("完成啦") == true,
+            done.extras?.getString(Notification.EXTRA_TEXT)?.contains("完成啦") == true,
         )
     }
 
