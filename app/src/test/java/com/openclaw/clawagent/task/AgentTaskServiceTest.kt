@@ -229,7 +229,7 @@ class AgentTaskServiceTest {
     fun `finish posts a foreground progress notice and a completion notification`() = runBlocking {
         server.enqueue(sseResponse(sseBody(contentFrame("完成啦"))))
 
-        startTask(
+        val service = startTask(
             AgentTaskService.PendingTask(
                 request(history = listOf(ChatService.Message("user", "hi"))),
                 "hi",
@@ -238,10 +238,15 @@ class AgentTaskServiceTest {
         )
         awaitFinished()
 
-        assertTrue(
-            "expect the ongoing foreground notice",
-            hasNotification(foregroundNotificationId),
+        // The service went foreground for the turn. Its notification is
+        // removed by stopForeground(STOP_FOREGROUND_REMOVE) on completion, so
+        // assert the recorded foreground id rather than a live notification.
+        assertEquals(
+            "service must host a foreground progress notice",
+            foregroundNotificationId,
+            shadowOf(service).lastForegroundNotificationId,
         )
+        // The completion notification (a different id) is never removed.
         assertTrue(
             "expect the completion notification",
             hasNotification(resultNotificationId),
