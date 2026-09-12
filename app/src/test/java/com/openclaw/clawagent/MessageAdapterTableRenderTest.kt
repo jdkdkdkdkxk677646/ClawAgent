@@ -1,14 +1,11 @@
 package com.openclaw.clawagent
 
 import android.content.Context
-import android.graphics.Typeface
 import android.os.Looper
 import android.view.View
-import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
-import android.widget.TableLayout
-import android.widget.TableRow
 import android.widget.TextView
+import androidx.compose.ui.platform.ComposeView
 import androidx.test.core.app.ApplicationProvider
 import com.openclaw.clawagent.markdown.Segment
 import org.junit.Assert.assertEquals
@@ -19,15 +16,16 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
 /**
- * Unit tests for the table rendering path of [MessageAdapter].
+ * Unit tests for [MessageAdapter]'s table rendering path.
  *
- * Robolectric inflates the real layouts on the JVM, so we can assert the view
- * tree the adapter builds (row/cell structure, block stacking, holder reuse)
- * without an emulator. MarkdownParser itself is covered by MarkdownParserTest;
- * here we only assert what the adapter makes of its output.
+ * T-302:表格已从原生 `TableLayout` 换成 Compose 原生渲染(承载在
+ * [ComposeView] 里)。因此断言从"TableLayout 行/单元格结构"下调为"气泡面板里
+ * 出现一个 ComposeView"这一结构级契约——表格内部的 Compose 布局不在 Robolectric
+ * 的 View 树里,不做像素级断言;MarkdownParser 的解析仍由 MarkdownParserTest 覆盖。
  *
- * v4.1: the adapter is a ListAdapter — [bind] pumps the main looper so the
- * async diff finishes before binding, mirroring what RecyclerView sees.
+ * Robolectric inflates the real layouts on the JVM, so we can build the view tree
+ * the adapter produces without an emulator. The adapter is a ListAdapter — [bind]
+ * pumps the main looper so the async diff finishes before binding.
  */
 @RunWith(RobolectricTestRunner::class)
 class MessageAdapterTableRenderTest {
@@ -44,40 +42,22 @@ class MessageAdapterTableRenderTest {
         return vh
     }
 
-    /** Locate the TableLayout inside a bubble's HorizontalScrollView. */
-    private fun tableOf(vh: MessageAdapter.VH): TableLayout {
-        val scroll = vh.bubble.getChildAt(1) as HorizontalScrollView
-        return scroll.findViewById(R.id.tableLayout)
-    }
+    /** 气泡面板里承载表格的 ComposeView(T-302 起表格改为 Compose 原生)。 */
+    private fun tableViews(vh: MessageAdapter.VH): List<ComposeView> =
+        (0 until vh.bubble.childCount)
+            .map { vh.bubble.getChildAt(it) }
+            .filterIsInstance<ComposeView>()
 
-    private fun cellText(row: TableRow, column: Int): String =
-        (row.getChildAt(column) as TextView).text.toString()
-
-    // ── 结构：表格 ↔ 真实视图 ─────────────────────────────────────
+    // ── 结构:表格 ↔ ComposeView ───────────────────────────────────
 
     @Test
-    fun `table message renders scroll view with header and data rows`() {
-        val vh = bind(ChatMessage("assistant", "| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |"))
+    fun `table message renders a ComposeView and hides the text block`() {
+        val vh = bind(ChatMessage("assistant", "| A | B |\n| --- | --- |\n| 1 | 2 |"))
 
-        // 表格开头、无前置文本：常驻首块隐藏，气泡 = 隐藏的 messageText + 表格
+        // 表格开头、无前置文本:常驻首块隐藏,气泡 = 隐藏的 messageText + 表格 ComposeView
         assertEquals(2, vh.bubble.childCount)
         assertEquals(View.GONE, vh.binding.messageText.visibility)
-
-        val table = tableOf(vh)
-        assertEquals(3, table.childCount) // 表头 + 2 数据行
-
-        val header = table.getChildAt(0) as TableRow
-        assertEquals(2, header.childCount)
-        assertEquals("A", cellText(header, 0))
-        assertEquals("B", cellText(header, 1))
-
-        val row0 = table.getChildAt(1) as TableRow
-        assertEquals("1", cellText(row0, 0))
-        assertEquals("2", cellText(row0, 1))
-
-        val row1 = table.getChildAt(2) as TableRow
-        assertEquals("3", cellText(row1, 0))
-        assertEquals("4", cellText(row1, 1))
+        assertEquals(1, tableViews(vh).size)
     }
 
     @Test
@@ -88,27 +68,24 @@ class MessageAdapterTableRenderTest {
 
         assertEquals(3, vh.bubble.childCount)
         val first = vh.bubble.getChildAt(0) as TextView
-        val scroll = vh.bubble.getChildAt(1) as HorizontalScrollView
+        val middle = vh.bubble.getChildAt(1)
         val last = vh.bubble.getChildAt(2) as TextView
 
         assertTrue(first.text.toString().startsWith("intro"))
-        assertEquals(1, scroll.findViewById<TableLayout>(R.id.tableLayout).childCount - 1) // 数据行数
+        assertTrue("表格位置应是 ComposeView", middle is ComposeView)
         assertTrue(last.text.toString().endsWith("outro"))
         assertEquals(View.VISIBLE, vh.binding.messageText.visibility)
     }
 
     @Test
-    fun `multiple tables in one message each get their own scroll view`() {
+    fun `multiple tables in one message each get their own ComposeView`() {
         val vh = bind(
             ChatMessage(
                 "assistant",
                 "| A |\n| --- |\n| 1 |\n\nmiddle\n\n| B |\n| --- |\n| 2 |",
             )
         )
-        val scrolls = (0 until vh.bubble.childCount)
-            .map { vh.bubble.getChildAt(it) }
-            .filterIsInstance<HorizontalScrollView>()
-        assertEquals(2, scrolls.size)
+        assertEquals(2, tableViews(vh).size)
     }
 
     @Test
@@ -119,6 +96,7 @@ class MessageAdapterTableRenderTest {
         assertEquals(1, vh.bubble.childCount) // 只有 messageText，无表格
         assertEquals(View.VISIBLE, vh.binding.messageText.visibility)
         assertEquals(raw, vh.binding.messageText.text.toString())
+        assertTrue(tableViews(vh).isEmpty())
     }
 
     @Test
@@ -127,30 +105,15 @@ class MessageAdapterTableRenderTest {
 
         assertEquals(1, vh.bubble.childCount)
         assertEquals(View.VISIBLE, vh.binding.messageText.visibility)
+        assertTrue(tableViews(vh).isEmpty())
     }
 
-    // ── 边界：空表 / 只有表头 / 长短不齐 / 长文本 ─────────────────
+    // ── 边界:空表 / 只有表头 / 长文本 ───────────────────────────
 
     @Test
-    fun `header only table renders single row`() {
+    fun `header only table still renders a ComposeView`() {
         val vh = bind(ChatMessage("assistant", "| H1 | H2 |\n| --- | --- |"))
-
-        val table = tableOf(vh)
-        assertEquals(1, table.childCount)
-        assertEquals(2, (table.getChildAt(0) as TableRow).childCount)
-    }
-
-    @Test
-    fun `ragged rows are padded to column count`() {
-        val vh = bind(
-            ChatMessage("assistant", "| A | B | C |\n| --- | --- | --- |\n| only |")
-        )
-
-        val row = (tableOf(vh).getChildAt(1) as TableRow)
-        assertEquals(3, row.childCount)
-        assertEquals("only", cellText(row, 0))
-        assertEquals("", cellText(row, 1))
-        assertEquals("", cellText(row, 2))
+        assertEquals(1, tableViews(vh).size)
     }
 
     @Test
@@ -165,40 +128,14 @@ class MessageAdapterTableRenderTest {
     }
 
     @Test
-    fun `very long cell text builds without crash and keeps full content`() {
+    fun `very long cell text builds without crash`() {
         val longCell = "超长单元格内容不会换行而是撑宽横向滚动".repeat(50)
         val vh = bind(ChatMessage("assistant", "| A |\n| --- |\n| $longCell |"))
 
-        val row = (tableOf(vh).getChildAt(1) as TableRow)
-        assertEquals(longCell, cellText(row, 0))
+        assertEquals(1, tableViews(vh).size)
     }
 
-    // ── 样式：表头加粗 + 底色，分隔线，padding ────────────────────
-
-    @Test
-    fun `header cells are bold with header background`() {
-        val vh = bind(ChatMessage("assistant", "| A | B |\n| --- | --- |\n| 1 | 2 |"))
-
-        val headerCell = ((tableOf(vh).getChildAt(0) as TableRow).getChildAt(0)) as TextView
-        val bodyCell = ((tableOf(vh).getChildAt(1) as TableRow).getChildAt(0)) as TextView
-
-        assertTrue(
-            "表头应加粗（typeface 或 fake bold 之一）",
-            headerCell.typeface.style == Typeface.BOLD || headerCell.paint.isFakeBoldText,
-        )
-        assertTrue("表头应有底色 drawable", headerCell.background != null)
-        assertTrue("数据行不应有底色", bodyCell.background == null)
-    }
-
-    @Test
-    fun `table layout uses divider drawable between rows`() {
-        val vh = bind(ChatMessage("assistant", "| A |\n| --- |\n| 1 |\n| 2 |"))
-
-        val table = tableOf(vh)
-        assertTrue("行间分隔线应启用", (table.showDividers and LinearLayout.SHOW_DIVIDER_MIDDLE) != 0)
-    }
-
-    // ── 复用：RecyclerView holder 反复重绑必须幂等 ────────────────
+    // ── 复用:RecyclerView holder 反复重绑必须幂等 ────────────────
 
     @Test
     fun `rebinding a table holder to plain text drops the old widget`() {
@@ -239,10 +176,10 @@ class MessageAdapterTableRenderTest {
         adapter.onBindViewHolder(vh, 1)
         assertEquals(2, vh.bubble.childCount)
         assertEquals(View.GONE, vh.binding.messageText.visibility)
-        assertEquals(2, tableOf(vh).childCount) // 表头 + 1 数据行
+        assertEquals(1, tableViews(vh).size)
     }
 
-    // ── 交互：长按表格也能复制原始 markdown ──────────────────────
+    // ── 交互:长按表格也能复制原始 markdown ──────────────────────
 
     @Test
     fun `long press on table copies raw markdown`() {
@@ -258,9 +195,9 @@ class MessageAdapterTableRenderTest {
         val vh = adapter.onCreateViewHolder(LinearLayout(context), 0)
         adapter.onBindViewHolder(vh, 0)
 
-        val scroll = vh.bubble.getChildAt(1) as HorizontalScrollView
-        assertTrue(scroll.isLongClickable)
-        scroll.performLongClick()
+        val table = tableViews(vh).single()
+        assertTrue(table.isLongClickable)
+        table.performLongClick()
 
         assertEquals(raw, copied)
         assertEquals(0, clickedPosition)
@@ -305,10 +242,6 @@ class MessageAdapterTableRenderTest {
         val parser = CountingParser()
         val adapter = MessageAdapter(parser = parser, parseCacheSize = 64)
 
-        // Stream the assistant reply in three increments. The data class
-        // is mutated in place — mirroring what the real model loop does
-        // to the tail message. Each rebind is a separate stream chunk,
-        // and each new content key is one cache miss.
         val msg = ChatMessage("assistant", "")
         adapter.submitList(listOf(msg))
         shadowOf(Looper.getMainLooper()).idle()
@@ -346,10 +279,6 @@ class MessageAdapterTableRenderTest {
         adapter.submitList(msgs)
         shadowOf(Looper.getMainLooper()).idle()
         val vh = adapter.onCreateViewHolder(LinearLayout(context), 0)
-        // Bind all three: each one is a fresh content key, so the parser
-        // should run three times. After the third bind, the cache should
-        // hold "second" and "third" (accessOrder bumps "second" to MRU
-        // when "third" arrives and the eldest "first" drops out).
         adapter.onBindViewHolder(vh, 0)
         adapter.onBindViewHolder(vh, 1)
         adapter.onBindViewHolder(vh, 2)
@@ -363,8 +292,6 @@ class MessageAdapterTableRenderTest {
 
     @Test
     fun `user messages bypass the parser entirely`() {
-        // User roles render verbatim — they should never invoke the parser,
-        // so they shouldn't even be cached.
         val parser = CountingParser()
         val adapter = MessageAdapter(parser = parser, parseCacheSize = 64)
         adapter.submitList(listOf(ChatMessage("user", "raw user text")))

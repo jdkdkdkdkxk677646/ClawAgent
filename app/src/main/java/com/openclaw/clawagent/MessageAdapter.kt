@@ -17,17 +17,17 @@ import android.text.util.Linkify
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
-import android.widget.TableLayout
-import android.widget.TableRow
 import android.widget.TextView
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.openclaw.clawagent.databinding.ItemMessageBinding
 import com.openclaw.clawagent.markdown.MarkdownParser
 import com.openclaw.clawagent.markdown.Segment
+import com.openclaw.clawagent.ui.MessageTable
 
 data class ChatMessage(val role: String, var content: String)
 
@@ -37,13 +37,14 @@ data class ChatMessage(val role: String, var content: String)
  * all `style=` attributes, so code blocks rendered as plain prose.
  *
  * Text segments keep the span pipeline (one or more TextViews inside the
- * bubble), while table segments render as a real widget table: a
- * HorizontalScrollView wrapping a stock android.widget.TableLayout, so wide
- * tables scroll horizontally inside the bubble and short tables fill the
- * bubble width (fillViewport). item_message.xml stays untouched —
- * onCreateViewHolder wraps the existing messageText into a vertical panel
- * (the padding / layout slot / background role move to the panel), letting
- * text blocks and table widgets stack inside one and the same bubble.
+ * bubble), while table segments render as a Compose-native table
+ * (`ui/MessageTable.kt`) hosted in a ComposeView, so wide tables scroll
+ * horizontally inside the bubble (T-302 — replaced the old
+ * HorizontalScrollView + android.widget.TableLayout). item_message.xml stays
+ * untouched — onCreateViewHolder wraps the existing messageText into a
+ * vertical panel (the padding / layout slot / background role move to the
+ * panel), letting text blocks and table widgets stack inside one and the same
+ * bubble.
  *
  * The raw (unrendered) text is emitted through [onCopy] on long-press so the
  * clipboard gets exactly what the model wrote. Position is passed back so
@@ -312,13 +313,11 @@ class MessageAdapter(
     }
 
     /**
-     * Renders a [Segment.Table] as a real widget table: a HorizontalScrollView
-     * (horizontal scrolling enabled for this row only, height wraps its
-     * content — tall tables grow vertically, there is no inner vertical
-     * scroll) wrapping a stock android.widget.TableLayout. Cell text never
-     * wraps (the scroll container measures with unbounded width), so overly
-     * wide content simply widens the scrollable area. No third-party
-     * dependency is involved. Marked internal so the render path is unit
+     * Renders a [Segment.Table] with the Compose-native table (`ui/MessageTable.kt`,
+     * T-302) hosted in a [ComposeView] inside the bubble panel. Replaces the old
+     * HorizontalScrollView + android.widget.TableLayout. The bubble list itself is
+     * a View hierarchy, so a ComposeView is the bridge. Long-press copy reuses the
+     * View OnLongClickListener. Marked internal so the render path stays unit
      * testable with Robolectric.
      */
     internal fun appendTableWidget(
@@ -331,39 +330,14 @@ class MessageAdapter(
         val colCount = (listOf(table.headers) + table.rows).maxOfOrNull { it.size } ?: 0
         if (colCount == 0) return
 
-        val scroll = LayoutInflater.from(context)
-            .inflate(R.layout.item_table, parent, false) as HorizontalScrollView
-        longClick?.let { scroll.setOnLongClickListener(it) }
-        val tableLayout = scroll.findViewById<TableLayout>(R.id.tableLayout)
-
-        // 只有表头、没有数据行也照常渲染表头（GFM 允许的合法表格）。
-        if (table.headers.isNotEmpty()) {
-            tableLayout.addView(buildTableRow(context, table.headers, colCount, isHeader = true))
+        val composeView = ComposeView(context).apply {
+            // DisposeOnViewTreeLifecycleDestroyed:holder 回收 / 宿主销毁时释放
+            // composition,避免 RecyclerView 复用造成泄漏。
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            longClick?.let { setOnLongClickListener(it) }
+            setContent { MessageTable(table) }
         }
-        table.rows.forEach { row ->
-            tableLayout.addView(buildTableRow(context, row, colCount, isHeader = false))
-        }
-        parent.addView(scroll)
-    }
-
-    /**
-     * One TableRow; ragged rows (shorter or longer than the header) are padded
-     * with empty cells up to [colCount], mirroring the old text renderer.
-     */
-    private fun buildTableRow(
-        context: Context,
-        cells: List<String>,
-        colCount: Int,
-        isHeader: Boolean,
-    ): TableRow {
-        val row = TableRow(context)
-        val template = if (isHeader) R.layout.item_table_header_cell else R.layout.item_table_cell
-        repeat(colCount) { c ->
-            val cell = LayoutInflater.from(context).inflate(template, row, false) as TextView
-            cell.text = cells.getOrElse(c) { "" }
-            row.addView(cell)
-        }
-        return row
+        parent.addView(composeView)
     }
 
     /**
