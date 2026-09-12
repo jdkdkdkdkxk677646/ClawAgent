@@ -32,7 +32,7 @@
 
 | 任务号 | 标题 | 难度 | 状态 | 认领人 | 领取时间 | 交付 commit | 交付摘要 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T-201 | 流式渲染性能:Markdown 解析缓存 | ⭐⭐ | **claimed** | Mavis | 2026-09-12 09:10+0800 | — | — |
+| T-201 | 流式渲染性能:Markdown 解析缓存 | ⭐⭐ | **done** | Mavis | 2026-09-12 09:10+0800 | db78db6 | LRU(content→Segment),默认 64,accessOrder+removeEldestEntry;同 content bind 复用、新 content 重新 parse;user 消息不参与 |
 | T-202 | 分享/外部文本入口 | ⭐⭐⭐ | todo | — | — | — | — |
 | T-203 | AgentTaskService 单元测试(MockWebServer 全链路) | ⭐⭐⭐ | todo | — | — | — | — |
 | T-204 | 后台任务进行中提示条 | ⭐ | **blocked(等 T-202 完成,同文件)** | — | — | — | — |
