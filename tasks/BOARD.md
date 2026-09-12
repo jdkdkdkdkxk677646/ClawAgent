@@ -38,6 +38,20 @@
 | T-204 | 后台任务进行中提示条 | ⭐ | **done** | 哈哈 | 2026-09-12 21:18+0800 | 9e3fbe7b | ChatScreen 消息区与输入栏之间加 AnimatedVisibility 横幅(仅 state.backgroundTaskRunning 时显示,淡入淡出),纯信息不可点;未新增 state、未改 VM |
 | T-205 | CHANGELOG.md 全量补写(v1.0→v4.3) | ⭐ | **done** | 哈哈 | 2026-09-12 | 1c438bd | 170行,覆盖16个tag,v1.0~v4.3倒序,含维护约定段 |
 
+### 第三批(T-301~303,Roadmap 收尾)
+
+| 任务号 | 标题 | 难度 | 状态 | 认领人 | 领取时间 | 交付 commit | 交付摘要 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| T-301 | 消息列表分页(超长会话) | ⭐⭐⭐ | todo | — | — | — | — |
+| T-302 | 表格渲染升级为 Compose 原生横向滚动版 | ⭐⭐ | todo | — | — | — | — |
+| T-303 | 拍照直拍的 Compose 内整合 | ⭐⭐ | todo | — | — | — | — |
+
+**第三批波次(白名单互斥已核对)**
+
+- **Wave 1(可并行)**:T-302(只碰 `MessageAdapter.kt` + 新建 `ui/MessageTable.kt` + 表格渲染测试)‖ T-303(本波唯一持有 `MainActivity.kt` 豁免;碰 `ui/ChatScreen.kt` / `ui/ChatViewModel.kt` / 新建 `ui/AttachmentSheet.kt`)。两者文件集不相交。
+- **Wave 2(独占)**:T-301(吃 `MainActivity.kt` + `ui/ChatViewModel.kt` + `MessageAdapter.kt`,须等 Wave 1 释放)。
+- `MainActivity.kt` 热点:同一波次只允许一张卡写入白名单(本批 Wave 1 归 T-303)。
+
 ## 项目速览(所有 AI 必读,以 main 分支为准)
 
 - **产品**:Claw Agent——真正会干活的 Android AI Agent(工具调用/联网/记忆/提醒/MCP/后台任务)。
