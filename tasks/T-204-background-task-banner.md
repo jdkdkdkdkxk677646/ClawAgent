@@ -29,4 +29,17 @@ v4.3 后台任务:发送栏 ☕→🚀 后发送,回合移交给前台服务跑�
 
 ## 交付记录
 
-(完成后填写:认领人 / commit / 手工验收截图或描述)
+- **认领人**:哈哈
+- **交付 commit**:`9e3fbe7b`
+- **状态**:done;CI 全绿(GitHub Actions run `34696112871`,零回归)
+
+**关键决策 / 修改点**
+- 仅改 `ChatScreen.kt`:在消息区(欢迎块 / 列表)与 `InputBar` 之间插入 `AnimatedVisibility(visible = state.backgroundTaskRunning, enter = fadeIn(), exit = fadeOut())` 横幅。文案「🦀 后台任务进行中——锁屏/切走都不中断,完成后会通知你」,背景 `Color(0xFF1a1d27)` 圆角条 + `ClawColors.Accent` 12sp。
+- 严守 MVI 边界:只消费 `state.backgroundTaskRunning`(VM 在 `ReloadFromRepository` 时会同步该标志),**未新增 state、未改 `ChatViewModel.kt`**;横幅不可点(纯信息展示,UI 层拿不到 effects 通道)。无「待接线」项。
+- Compose UI 无新单测(本卡验收 = 零回归 + 手工路径)。
+
+**手工验收路径(请维护者真机确认)**:发送栏点 ☕ → 🚀 → 发一条消息 → 界面出现「🦀 后台任务进行中…」横幅;锁屏 / 切走不中断;完成通知到达后回前台 → 横幅消失,新消息出现在会话里。
+
+**测试结果**:`gradle :core-agent:test :core-tools:test :data:testDebugUnitTest :app:testDebugUnitTest` 全绿(CI)。
+
+**环境说明**:执行沙盒无法本地运行 `:app` 单测,故以 CI 验证。
