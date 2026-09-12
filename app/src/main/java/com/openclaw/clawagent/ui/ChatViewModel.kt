@@ -54,6 +54,8 @@ data class ChatUiState(
     val backgroundTask: Boolean = false,
     /** 已有任务在后台跑(期间禁止发送,避免两路同时写会话树)。 */
     val backgroundTaskRunning: Boolean = false,
+    /** T-202:外部分享进来的待填草稿;填入输入框后由 ClearDraft 清除。 */
+    val draft: String? = null,
 ) {
     val showWelcome: Boolean get() = messages.isEmpty()
     val canSend: Boolean get() = !isSending && !isLoading && !backgroundTaskRunning
@@ -74,6 +76,10 @@ sealed class ChatIntent {
     data class CopyAt(val position: Int) : ChatIntent()
     data object ToggleBackground : ChatIntent()
     data object ReloadFromRepository : ChatIntent()
+    /** T-202:把外部分享文本填入输入框(只填草稿,不自动发送)。 */
+    data class SetDraft(val text: String) : ChatIntent()
+    /** T-202:草稿已填入,清空一次性槽,避免重复触发。 */
+    data object ClearDraft : ChatIntent()
 }
 
 /** 一次性副作用,由 Activity 消费(Toast/选择器/剪贴板/分享)。 */
@@ -204,6 +210,10 @@ class ChatViewModel(
                 )
                 publish()
             }
+            is ChatIntent.SetDraft ->
+                _state.value = _state.value.copy(draft = intent.text)
+            ChatIntent.ClearDraft ->
+                _state.value = _state.value.copy(draft = null)
         }
     }
 

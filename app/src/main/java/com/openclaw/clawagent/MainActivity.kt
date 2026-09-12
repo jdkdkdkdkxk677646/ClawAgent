@@ -25,6 +25,7 @@ import com.openclaw.clawagent.agent.AgentWiring
 import com.openclaw.clawagent.provider.ProviderHealthCache
 import com.openclaw.clawagent.provider.ProviderHealthChecker
 import com.openclaw.clawagent.provider.SecurePrefs
+import com.openclaw.clawagent.task.ChatRepository
 import com.openclaw.clawagent.ui.ClawColors
 import com.openclaw.clawagent.ui.ChatEffect
 import com.openclaw.clawagent.ui.ChatIntent
@@ -151,6 +152,9 @@ class MainActivity : ComponentActivity() {
                 adapter.submitList(st.messages)
             }
         }
+
+        // T-202:冷启动直接来自分享时,onCreate 先兜一次(紧随的 onStart 也会兜,幂等)。
+        consumePendingShare()
     }
 
     @androidx.compose.runtime.Composable
@@ -171,6 +175,19 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         // 回前台:后台任务(Service)可能已写入新消息,重读共享会话树。
         vm.onIntent(ChatIntent.ReloadFromRepository)
+        // T-202:冷/热启动都把系统分享进来的文本填成草稿。
+        consumePendingShare()
+    }
+
+    /**
+     * T-202:消费系统分享槽——把文本交给 ViewModel 填成输入框草稿,然后清槽。
+     * 只填草稿、不自动发送(用户需确认/补充)。槽为空时无副作用。
+     */
+    private fun consumePendingShare() {
+        ChatRepository.pendingShare?.let { text ->
+            ChatRepository.pendingShare = null
+            vm.onIntent(ChatIntent.SetDraft(text))
+        }
     }
 
     private fun showForkMenu(position: Int) {

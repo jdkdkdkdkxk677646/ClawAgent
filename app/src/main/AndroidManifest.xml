@@ -40,6 +40,19 @@
             android:windowSoftInputMode="adjustResize">
         </activity>
 
+        <!-- T-202:系统分享入口——任意 App 选中文本 ACTION_SEND(text/*) 分享给
+             Claw。NoDisplay 不闪 UI:写入进程内槽后转交 MainActivity 即 finish。 -->
+        <activity
+            android:name=".ShareReceiverActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+            </intent-filter>
+        </activity>
+
         <!-- Agent 的 remind 工具:AlarmManager 触发后由它发通知 -->
         <receiver
             android:name=".agent.ReminderReceiver"

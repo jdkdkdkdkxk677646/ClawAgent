@@ -115,6 +115,7 @@ fun ChatScreen(
                 onAttachClick = onAttachClick,
                 onAttachLongClick = onAttachLongClick,
                 onToggleBackground = { onIntent(ChatIntent.ToggleBackground) },
+                onConsumeDraft = { onIntent(ChatIntent.ClearDraft) },
             )
         }
     }
@@ -226,8 +227,17 @@ private fun InputBar(
     onAttachClick: () -> Unit,
     onAttachLongClick: () -> Unit,
     onToggleBackground: () -> Unit,
+    onConsumeDraft: (String) -> Unit,
 ) {
     var text by remember { mutableStateOf("") }
+
+    // T-202:外部分享进来的草稿填入输入框后立刻消费(清除),避免重组重复填充。
+    LaunchedEffect(state.draft) {
+        state.draft?.let { draft ->
+            text = draft
+            onConsumeDraft(draft)
+        }
+    }
 
     Row(
         modifier = Modifier

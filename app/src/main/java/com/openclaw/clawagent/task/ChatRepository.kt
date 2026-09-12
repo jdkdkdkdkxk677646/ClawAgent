@@ -46,6 +46,15 @@ object ChatRepository {
     @Volatile
     var backgroundTaskRunning = false
 
+    /**
+     * T-202:进程内一次性槽——[com.openclaw.clawagent.ShareReceiverActivity] 收到
+     * 系统分享文本后写入,[com.openclaw.clawagent.MainActivity] 启动/回前台时
+     * 消费成输入框草稿。刻意不被 [reset] 清空:分享槽的写入发生在 MainActivity
+     * 创建之前,一次 reset 会把还没被消费的分享文本抹掉。
+     */
+    @Volatile
+    var pendingShare: String? = null
+
     fun init(context: Context) {
         if (initialized) return
         reset(context)
