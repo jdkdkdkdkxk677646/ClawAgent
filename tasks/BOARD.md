@@ -42,7 +42,7 @@
 
 | 任务号 | 标题 | 难度 | 状态 | 认领人 | 领取时间 | 交付 commit | 交付摘要 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T-301 | 消息列表分页(超长会话) | ⭐⭐⭐ | todo | — | — | — | — |
+| T-301 | 消息列表分页(超长会话) | ⭐⭐⭐ | **claimed** | 哈哈 | 2026-09-12 22:05+0800 | — | — |
 | T-302 | 表格渲染升级为 Compose 原生横向滚动版 | ⭐⭐ | **done** | 哈哈 | 2026-09-12 21:44+0800 | 60d2f653 | MessageAdapter 表格改用 ComposeView 承载新建 ui/MessageTable.kt(Compose 原生横向滚动+列宽对齐);重写表格渲染测试为 ComposeView 结构断言;删除 item_table*.xml |
 | T-303 | 拍照直拍的 Compose 内整合 | ⭐⭐ | **done** | 哈哈 | 2026-09-12 21:53+0800 | ce85e5fe | ChatScreen 📷 改弹 AttachmentSheet(拍照/相册)可见入口;拍照改用 Compose 内 rememberLauncherForActivityResult(TakePicture);prepareCamera 改返 Uri? 并拆 newCameraTempFile 便于单测;删 effect LaunchCamera 与旧接线 |
 
