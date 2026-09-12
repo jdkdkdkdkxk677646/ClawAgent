@@ -36,4 +36,21 @@
 
 ## 交付记录
 
-(完成后填写:认领人 / commit / 关键决策 / 测试结果)
+- **认领人**:哈哈
+- **交付 commit**:`ce85e5fe`(修复)、`950f8d4e`(主体)
+- **状态**:done;CI 全绿(GitHub Actions run `34698051167`,零回归)
+
+**关键决策 / 修改点**
+- `ChatScreen.kt`:新增 `onRequestCamera: () -> Uri?` 与 `onCameraResult: (Boolean) -> Unit` 两个回调;在 composition 内用 `rememberLauncherForActivityResult(TakePicture())` 发起拍照;`InputBar` 的 📷 由"点击=相册 / 长按=拍照"改为"点击弹出附件菜单"。
+- 新建 `ui/AttachmentSheet.kt`:Compose AlertDialog,提供「📸 拍照」「🖼 相册」两条**可见入口**,替代过去隐藏的长按手势。
+- `ChatViewModel.kt`:`prepareCamera()` 返回形态由 `ChatEffect.LaunchCamera?` 改为 `Uri?`(拍照发起上移到 UI 层);拆出 `internal fun newCameraTempFile()`(建文件 + 记待清理,与 FileProvider 解耦,便于 JVM 单测)。删除 `ChatEffect.LaunchCamera`。
+- `MainActivity.kt`:删除 Activity 层的 `TakePicture` launcher 与 `onAttachLongClick` 接线,及 effects 里的 `LaunchCamera` 分支;改传 `onRequestCamera = { vm.prepareCamera() }` / `onCameraResult = { vm.onCameraResult(it) }`。
+- `ImageAttachments` / `FileProvider` / `file_paths.xml` / 4MB 上限 / 单条 3 张:**均未改动**(管道本就存在)。
+
+**一个环境坑**:`FileProvider.getUriForFile` 依赖真实 `PackageManager`,而 Robolectric 没有 `resolveContentProvider` 的 shadow → 在 JVM 下必抛异常。因此把"建文件"抽成 `newCameraTempFile()` 供单测,URI 生成一段交给真机验收(该路径本就是既有生产逻辑)。
+
+**手工验收路径(请维护者真机确认)**:点输入栏 📷 → 弹「拍照 / 相册」→ 选「拍照」→ 授权相机 → 拍一张回填 → 输入框出现 📷1 → 发送,请求体含 `image_url`(vision 全链路);选「相册」走原路径;大图 > 4MB 应提示"图片过大"。
+
+**测试结果**:`gradle :core-agent:test :core-tools:test :data:testDebugUnitTest :app:testDebugUnitTest` 全绿(CI)。
+
+**环境说明**:执行沙盒无法本地运行 `:app` 单测,故以 CI 验证。
