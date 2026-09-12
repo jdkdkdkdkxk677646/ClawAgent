@@ -35,7 +35,8 @@ object ChatRepository {
         private set
 
     /** The conversation tree — one object, touched by VM and Service alike. */
-    val tree = ConversationTree()
+    var tree = ConversationTree()
+        private set
 
     @Volatile
     var initialized = false
@@ -47,11 +48,23 @@ object ChatRepository {
 
     fun init(context: Context) {
         if (initialized) return
+        reset(context)
+    }
+
+    /**
+     * Rebinds all state to a fresh context/tree. Production calls this once
+     * (via init); Robolectric tests call it per test method — the singleton
+     * outlives a single test's database, and a stale in-memory tree would
+     * leak between tests.
+     */
+    fun reset(context: Context) {
         prefs = SecurePrefs(context)
         storage = ConversationStorage(context)
         usageTracker = UsageTracker(prefs.usageStore())
         chatService = com.openclaw.clawagent.provider.ChatService(usageTracker = usageTracker)
         agentLoop = com.openclaw.clawagent.agent.AgentLoop(chatService)
+        tree = ConversationTree()
+        backgroundTaskRunning = false
         initialized = true
     }
 

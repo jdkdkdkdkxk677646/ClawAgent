@@ -59,6 +59,9 @@ class ChatViewModelTest {
         context.deleteDatabase(ClawDatabase.NAME)
         context.getSharedPreferences("claw_branches", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("claw_settings", Context.MODE_PRIVATE).edit().clear().commit()
+        // The repository singleton outlives one test's database — rebind it
+        // (fresh tree included) or in-memory state leaks across tests.
+        com.openclaw.clawagent.task.ChatRepository.reset(context)
     }
 
     @After
