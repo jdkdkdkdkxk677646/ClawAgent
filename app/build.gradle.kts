@@ -112,4 +112,7 @@ dependencies {
     testImplementation("androidx.test.ext:junit:1.1.5")
     // ChatViewModelTest: Dispatchers.setMain / UnconfinedTestDispatcher
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    // T-203: AgentTaskServiceTest drives the full background turn over a real
+    // socket — MockWebServer scripts the OpenAI SSE frames, no live provider.
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
