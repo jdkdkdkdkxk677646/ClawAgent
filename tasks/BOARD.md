@@ -52,6 +52,20 @@
 - **Wave 2(独占)**:T-301(吃 `MainActivity.kt` + `ui/ChatViewModel.kt` + `MessageAdapter.kt`,须等 Wave 1 释放)。
 - `MainActivity.kt` 热点:同一波次只允许一张卡写入白名单(本批 Wave 1 归 T-303)。
 
+### 第四批(T-304~306,收尾)
+
+| 任务号 | 标题 | 难度 | 状态 | 认领人 | 领取时间 | 交付 commit | 交付摘要 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| T-304 | README / Roadmap 收尾 | ⭐ | todo | — | — | — | — |
+| T-305 | v4.3.0 发版准备(CHANGELOG 落版 + 版本号) | ⭐⭐ | todo | — | — | — | — |
+| T-306 | 消息列表 stableId(可选,依赖真机验收) | ⭐⭐⭐ | todo | — | — | — | — |
+
+**第四批说明**
+
+- Wave 1:**T-304 ‖ T-305** 可并行(README vs CHANGELOG+build.gradle,文件集不相交)。
+- Wave 2(独占):**T-306**,吃 `MainActivity.kt` + `ChatViewModel.kt` + `MessageAdapter.kt`;且**可选**——先真机验收 T-301 分页,不抖就不做。
+- **非 AI 任务(维护者)**:打 tag `v4.3.0`、配置签名 secrets、真机验收(相机/分页/分享/后台横幅)。详见 T-305 卡。
+
 ## 项目速览(所有 AI 必读,以 main 分支为准)
 
 - **产品**:Claw Agent——真正会干活的 Android AI Agent(工具调用/联网/记忆/提醒/MCP/后台任务)。
