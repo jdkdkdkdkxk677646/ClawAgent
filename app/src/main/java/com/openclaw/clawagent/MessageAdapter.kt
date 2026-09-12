@@ -60,7 +60,34 @@ data class ChatMessage(val role: String, var content: String)
 class MessageAdapter(
     private val onCopy: (String) -> Unit = {},
     private val onMessageLongClick: ((position: Int, message: ChatMessage) -> Unit)? = null,
+    private val parser: (String) -> List<Segment> = MarkdownParser::parse,
+    /**
+     * Maximum number of cached parse results. The cap exists because
+     * streaming leaves one entry per intermediate content snapshot, so the
+     * cache would otherwise grow unbounded during a long reply. Default 64
+     * covers ~30 KB of unique content — far more than a chat bubble holds
+     * on screen at once. Tests can lower it to exercise eviction cheaply.
+     */
+    private val parseCacheSize: Int = DEFAULT_PARSE_CACHE_SIZE,
 ) : ListAdapter<ChatMessage, MessageAdapter.VH>(DIFF) {
+
+    /**
+     * LRU map from raw content to the parsed [Segment] list. Keyed on the
+     * full content string, so a content change naturally evicts its own
+     * stale entry without manual invalidation.
+     *
+     * Threading: [bindContent] only runs on the main thread, and this
+     * adapter is constructed and used by the Activity on the main thread,
+     * so we do not synchronize. If the adapter is ever moved off the main
+     * thread (e.g. for RecyclerView prefetch on a background looper),
+     * this cache will need to become a thread-safe map.
+     */
+    private val parseCache: LinkedHashMap<String, List<Segment>> =
+        object : LinkedHashMap<String, List<Segment>>(16, 0.75f, /* accessOrder = */ true) {
+            override fun removeEldestEntry(eldest: Map.Entry<String, List<Segment>>): Boolean {
+                return size > parseCacheSize
+            }
+        }
 
     inner class VH(val binding: ItemMessageBinding) : RecyclerView.ViewHolder(binding.root) {
 
@@ -203,7 +230,7 @@ class MessageAdapter(
             sb.clear()
         }
 
-        MarkdownParser.parse(msg.content).forEach { seg ->
+        parseCached(msg.content).forEach { seg ->
             when (seg) {
                 is Segment.Text -> {
                     ensureBlock()
@@ -269,6 +296,19 @@ class MessageAdapter(
 
         // 消息以表格开头（没有任何文本块被用到）时，常驻首块让位隐藏。
         if (!firstBlockUsed) messageText.visibility = View.GONE
+    }
+
+    /**
+     * Look up [content] in [parseCache]; on miss, run the injected [parser]
+     * and store the result. The cache is LRU-bounded by [parseCacheSize],
+     * so even if the model streams for a long reply we don't grow the map
+     * past its cap.
+     */
+    private fun parseCached(content: String): List<Segment> {
+        parseCache[content]?.let { return it }
+        val parsed = parser(content)
+        parseCache[content] = parsed
+        return parsed
     }
 
     /**
@@ -354,6 +394,8 @@ class MessageAdapter(
     }
 
     companion object {
+        /** Default LRU capacity. See [MessageAdapter] kdoc for the rationale. */
+        const val DEFAULT_PARSE_CACHE_SIZE: Int = 64
         /**
          * Role-keyed identity: with no stable ids, the diff pairs up messages
          * by role sequence — appends and streaming-tail rebinds (the two hot

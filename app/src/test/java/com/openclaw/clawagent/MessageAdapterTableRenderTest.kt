@@ -265,4 +265,109 @@ class MessageAdapterTableRenderTest {
         assertEquals(raw, copied)
         assertEquals(0, clickedPosition)
     }
+
+    // ----- T-201: parse-cache -------------------------------------------------
+
+    /**
+     * Counts each call to the injected parser. Tests use this to assert that
+     * the adapter only invokes the parser when the content key changes (or
+     * the cache evicts the entry).
+     */
+    private class CountingParser : (String) -> List<Segment> {
+        var calls: Int = 0
+        override fun invoke(content: String): List<Segment> {
+            calls++
+            // Body parser: keeps the same observable output as the real one
+            // for plain text — sufficient for the cache test, which only
+            // cares about *whether* the parser runs, not what's inside.
+            return listOf(Segment.Text(content))
+        }
+    }
+
+    @Test
+    fun `same content rebound yields a single parse call`() {
+        val parser = CountingParser()
+        val adapter = MessageAdapter(parser = parser, parseCacheSize = 64)
+        val msg = ChatMessage("assistant", "hello world")
+        adapter.submitList(listOf(msg))
+        shadowOf(Looper.getMainLooper()).idle()
+        val vh = adapter.onCreateViewHolder(LinearLayout(context), 0)
+
+        adapter.onBindViewHolder(vh, 0)
+        adapter.onBindViewHolder(vh, 0) // streaming tail — same content
+        adapter.onBindViewHolder(vh, 0) // ditto
+
+        assertEquals("expected parser to run once for repeated binds of the same content", 1, parser.calls)
+    }
+
+    @Test
+    fun `content change triggers exactly one new parse`() {
+        val parser = CountingParser()
+        val adapter = MessageAdapter(parser = parser, parseCacheSize = 64)
+
+        // First bind: content A.
+        adapter.submitList(listOf(ChatMessage("assistant", "alpha")))
+        shadowOf(Looper.getMainLooper()).idle()
+        val vh = adapter.onCreateViewHolder(LinearLayout(context), 0)
+        adapter.onBindViewHolder(vh, 0)
+        assertEquals(1, parser.calls)
+
+        // Second bind: same content — cache hit.
+        adapter.onBindViewHolder(vh, 0)
+        assertEquals(1, parser.calls)
+
+        // Third bind: mutated to content B — one new parse.
+        adapter.onBindViewHolder(vh, 0) // unchanged; still cache hit
+        vh.bindingAdapter // touch — just to silence the "unused" lint
+        // We can't easily mutate the snapshot from the outside because
+        // submitList deep-copies via DiffUtil. So simulate streaming
+        // by submitting a new list with the changed content and rebinding.
+        adapter.submitList(listOf(ChatMessage("assistant", "beta")))
+        shadowOf(Looper.getMainLooper()).idle()
+        adapter.onBindViewHolder(vh, 0)
+        assertEquals("content change should add exactly one parse", 2, parser.calls)
+    }
+
+    @Test
+    fun `lru evicts oldest entry when capacity is exceeded`() {
+        val parser = CountingParser()
+        // Tiny cap of 2 so we can exercise eviction without sending 64 messages.
+        val adapter = MessageAdapter(parser = parser, parseCacheSize = 2)
+
+        val msgs = listOf(
+            ChatMessage("assistant", "first"),
+            ChatMessage("assistant", "second"),
+            ChatMessage("assistant", "third"),
+        )
+        adapter.submitList(msgs)
+        shadowOf(Looper.getMainLooper()).idle()
+        val vh = adapter.onCreateViewHolder(LinearLayout(context), 0)
+        // Bind all three: each one is a fresh content key, so the parser
+        // should run three times. After the third bind, the cache should
+        // hold "second" and "third" (accessOrder bumps "second" to MRU
+        // when "third" arrives and the eldest "first" drops out).
+        adapter.onBindViewHolder(vh, 0)
+        adapter.onBindViewHolder(vh, 1)
+        adapter.onBindViewHolder(vh, 2)
+        assertEquals(3, parser.calls)
+
+        // Re-binding index 0 ("first") is now a cache miss because the
+        // entry was evicted, so the parser must run once more.
+        adapter.onBindViewHolder(vh, 0)
+        assertEquals(4, parser.calls)
+    }
+
+    @Test
+    fun `user messages bypass the parser entirely`() {
+        // User roles render verbatim — they should never invoke the parser,
+        // so they shouldn't even be cached.
+        val parser = CountingParser()
+        val adapter = MessageAdapter(parser = parser, parseCacheSize = 64)
+        adapter.submitList(listOf(ChatMessage("user", "raw user text")))
+        shadowOf(Looper.getMainLooper()).idle()
+        val vh = adapter.onCreateViewHolder(LinearLayout(context), 0)
+        adapter.onBindViewHolder(vh, 0)
+        adapter.onBindViewHolder(vh, 0)
+        assertEquals("user messages must not call the parser", 0, parser.calls)
+    }
 }
