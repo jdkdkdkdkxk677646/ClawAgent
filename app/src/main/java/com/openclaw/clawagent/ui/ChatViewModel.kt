@@ -86,7 +86,6 @@ sealed class ChatIntent {
 sealed class ChatEffect {
     data class Toast(val message: String) : ChatEffect()
     data object LaunchGalleryPicker : ChatEffect()
-    data class LaunchCamera(val uri: Uri, val tempFile: File) : ChatEffect()
     data class CopyToClipboard(val text: String) : ChatEffect()
     data object OpenSettings : ChatEffect()
     data object ScrollToBottom : ChatEffect()
@@ -225,7 +224,13 @@ class ChatViewModel(
 
     // ── images ───────────────────────────────────────────────────
 
-    fun prepareCamera(): ChatEffect.LaunchCamera? {
+    /**
+     * T-303:生成拍照用的临时文件 URI。拍照的**发起**交给 UI 层在 Compose 内用
+     * `rememberLauncherForActivityResult(TakePicture)` 完成(launcher 必须留在
+     * composition 里);这里只负责"建文件 + 出 URI + 记住待清理的临时文件"。
+     * 失败时发 Toast 并返回 null。
+     */
+    fun prepareCamera(): Uri? {
         val dir = File(appContext.cacheDir, "photos").apply { mkdirs() }
         val name = "IMG_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
             .format(Date()) + ".jpg"
@@ -239,7 +244,7 @@ class ChatViewModel(
             return null
         }
         pendingPhotoFile = file
-        return ChatEffect.LaunchCamera(uri, file)
+        return uri
     }
 
     fun onCameraResult(success: Boolean) {

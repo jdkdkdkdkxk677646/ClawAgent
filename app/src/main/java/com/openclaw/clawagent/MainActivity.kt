@@ -64,10 +64,6 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.PickVisualMedia()
     ) { uri -> vm.onGalleryResult(uri) }
 
-    private val takePicture = registerForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { ok -> vm.onCameraResult(ok) }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = SecurePrefs(this)
@@ -93,12 +89,8 @@ class MainActivity : ComponentActivity() {
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                             )
                         },
-                        onAttachLongClick = {
-                            vm.prepareCamera()?.let { effect ->
-                                runCatching { takePicture.launch(effect.uri) }
-                                    .onFailure { vm.onCameraResult(false) }
-                            }
-                        },
+                        onRequestCamera = { vm.prepareCamera() },
+                        onCameraResult = { vm.onCameraResult(it) },
                         messagesList = { MessagesList() },
                     )
 
@@ -130,10 +122,6 @@ class MainActivity : ComponentActivity() {
                         galleryPicker.launch(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                         )
-                    is ChatEffect.LaunchCamera -> {
-                        runCatching { takePicture.launch(effect.uri) }
-                            .onFailure { vm.onCameraResult(false) }
-                    }
                     is ChatEffect.CopyToClipboard -> {
                         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         cm.setPrimaryClip(ClipData.newPlainText("Claw Agent", effect.text))

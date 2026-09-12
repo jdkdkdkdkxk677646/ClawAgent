@@ -1,5 +1,8 @@
 package com.openclaw.clawagent.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -60,10 +63,18 @@ fun ChatScreen(
     onIntent: (ChatIntent) -> Unit,
     onOpenSettings: () -> Unit,
     onAttachClick: () -> Unit,
-    onAttachLongClick: () -> Unit,
+    onRequestCamera: () -> Uri?,
+    onCameraResult: (Boolean) -> Unit,
     messagesList: @Composable () -> Unit,
 ) {
     var showBranchPicker by remember { mutableStateOf(false) }
+    var showAttachMenu by remember { mutableStateOf(false) }
+
+    // T-303:拍照在 Compose 内发起——TakePicture launcher 必须留在 composition 里,
+    // 由 📷 菜单的「拍照」触发;VM.prepareCamera() 提供一次性文件 URI。
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { ok -> onCameraResult(ok) }
     var showRolePicker by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf<String?>(null) }
     var showLongPressMenu by remember { mutableStateOf<Int?>(null) }
@@ -136,12 +147,26 @@ fun ChatScreen(
                 state = state,
                 onSend = { onIntent(ChatIntent.SendMessage(it)) },
                 onStop = { onIntent(ChatIntent.StopGeneration) },
-                onAttachClick = onAttachClick,
-                onAttachLongClick = onAttachLongClick,
+                onAttachClick = { showAttachMenu = true },
                 onToggleBackground = { onIntent(ChatIntent.ToggleBackground) },
                 onConsumeDraft = { onIntent(ChatIntent.ClearDraft) },
             )
         }
+    }
+
+    // T-303:📷 的附件选择——「拍照」在 Compose 内用 launcher 发起,「相册」走原路径。
+    if (showAttachMenu) {
+        AttachmentSheet(
+            onDismiss = { showAttachMenu = false },
+            onCamera = {
+                showAttachMenu = false
+                onRequestCamera()?.let { uri -> cameraLauncher.launch(uri) }
+            },
+            onGallery = {
+                showAttachMenu = false
+                onAttachClick()
+            },
+        )
     }
 
     if (showBranchPicker) {
@@ -249,7 +274,6 @@ private fun InputBar(
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     onAttachClick: () -> Unit,
-    onAttachLongClick: () -> Unit,
     onToggleBackground: () -> Unit,
     onConsumeDraft: (String) -> Unit,
 ) {
@@ -274,7 +298,6 @@ private fun InputBar(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
                 .clickable(onClick = onAttachClick)
-                .combinedClickable(onClick = onAttachClick, onLongClick = onAttachLongClick)
                 .padding(8.dp),
             text = if (state.stagedImageCount > 0) "📷${state.stagedImageCount}" else "📷",
             color = if (state.stagedImageCount > 0) Color(0xFFfbbf24) else ClawColors.Accent,
