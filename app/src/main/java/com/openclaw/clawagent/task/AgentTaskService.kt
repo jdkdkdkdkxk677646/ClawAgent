@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
  * Foreground type `dataSync` keeps Android happy while the turn runs; a
  * progress notification is mandatory and doubles as the task indicator.
  */
-class AgentTaskService : LifecycleService() {
+class AgentTaskService : Service() {
 
     companion object {
         private const val CHANNEL_ID = "agent_task"
