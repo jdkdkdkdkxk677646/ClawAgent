@@ -5,9 +5,9 @@
 ## 铁律(违反会被拒收)
 
 1. **只改任务卡里"允许修改的文件"白名单内的文件**——这是并行不冲突的全部秘密。新建文件自由(放指定目录),动白名单外的文件 = 返工。
-2. **`MainActivity.kt` 是热点文件,T-101 之外一律禁改。** 需要接线的地方,在交付记录里写"待接线:xxx",由维护者统一做。
-3. **一个任务一个 commit**,message 以 `[T-101]` 这样的任务号开头。
-4. **交付前自检**:`./gradlew testDebugUnitTest` 全绿;新代码附单元测试;工具类遵循"execute 永不 throw,失败返回错误字符串"的项目约定。
+2. **`MainActivity.kt` 是热点文件,只有白名单里明确列出它的卡(当前 T-202)可以改。** 需要接线的地方,在交付记录里写"待接线:xxx",由维护者统一做。
+3. **一个任务一个 commit**,message 以 `[T-201]` 这样的任务号开头。
+4. **交付前自检**:`./gradlew :app:testDebugUnitTest :core-agent:test :core-tools:test :data:testDebugUnitTest` 全绿;新代码附单元测试;工具类遵循"execute 永不 throw,失败返回错误字符串"的项目约定。
 5. **完成动作**:① 代码推到 main(独立 commit);② 在下方看板表格把状态改为 `done` 并填认领人/commit/说明;③ 在任务卡末尾"交付记录"补全。三处都要填。
 6. **领任务动作**:把状态改为 `claimed`,填认领人与时间。状态是 `claimed` 且超过 24 小时无交付 commit 的,其他 AI 可以改回 `todo` 接手。
 
@@ -18,18 +18,34 @@
 
 ## 看板
 
+### 第一批(T-101~105,v2.x 时代,已完结)
+
+| 任务号 | 标题 | 难度 | 状态 | 认领人 | 交付摘要 |
+| --- | --- | --- | --- | --- | --- |
+| T-101 | 图片输入(vision 全链路) | ⭐⭐⭐ | done | ima copilot(哈哈) | Photo Picker→多模态 content 数组全链路 |
+| T-102 | 提醒持久化:重启恢复 | ⭐⭐ | done | 哈哈 | ReminderStore+BootReceiver,重启恢复 |
+| T-103 | Markdown 渲染增强 | ⭐⭐ | done | 哈哈 | 表格/删除线/任务列表 |
+| T-104 | 服务商预设扩充 | ⭐ | done | ima copilot(哈哈) | 共 13 家预设 |
+| T-105 | 单元测试补强 | ⭐ | done | ima copilot(哈哈) | 36 个对抗/边界用例 |
+
+### 第二批(T-201~205,v4.3.0-alpha.1 基线)
+
 | 任务号 | 标题 | 难度 | 状态 | 认领人 | 领取时间 | 交付 commit | 交付摘要 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T-101 | 图片输入(vision 全链路) | ⭐⭐⭐ | done | ima copilot(哈哈) | 2026-09-10 10:08 | 6271147f | Photo Picker 选图(≤3 张,>4MB 拒绝)→ data URL 暂存 → OpenAI 多模态 content 数组;树存储只留 [图片 xN] 标记;wire 格式测试 3 例 |
-| T-102 | 提醒持久化:重启恢复 | ⭐⭐ | done | 哈哈 | 2026-09-10 14:05 | 本提交 ([T-102]) | 新增 ReminderStore(JSON 数组存 SharedPreferences,注入 read/write 回调,纯 JVM 可测)+BootReceiver(goAsync 中重排未过期提醒、过期补发「错过的提醒」通知并删除);ReminderTool setAlarm 后登记、ReminderReceiver 触发后删除;Manifest 加 RECEIVE_BOOT_COMPLETED+BootReceiver 声明;新增 8 个 Store 单测本地 8/8 全绿,ReminderTool 对外行为兼容 |
-| T-103 | Markdown 渲染增强:表格/删除线/任务列表 | ⭐⭐ | done | 哈哈 | 2026-09-10 13:22 | 本提交 ([T-103]) | 新增表格/删除线/任务列表解析(Strikethrough/TaskItem/Table 三节点),行内优先级 inline code>bold>strikethrough,表格支持 \| 转义;渲染层加删除线 span+☑/☐ 任务项+等宽表格;新增 11 用例本地 25/25 全绿零回归 |
-| T-104 | 服务商预设核查与扩充 | ⭐ | done | ima copilot(哈哈) | 2026-09-10 11:21 | 本提交 ([T-104]) | 新增硅基流动/月之暗面直连 Kimi/Groq 3 家预设(共13家)，原10家预设原值保留未改；新增单元测试校验 id/名称唯一、端点合法、总数=13 及 3 家新预设合规；纯数据变更无回归 |
-| T-105 | 单元测试补强(边界与对抗用例) | ⭐ | done | ima copilot(哈哈) | 2026-09-10 12:31 | 本提交 ([T-105]) | 新增 4 个测试文件共 36 个对抗/边界用例(Calculator 14/HttpToolLogic 10/NoteTool 6/PlanState 6),零产品代码改动;本地 Kotlin 2.2.0+JUnit4 真实编译运行 36/36 全绿;发现 validateUrl 对控制字符的注释与实现不符(待裁决) |
+| T-201 | 流式渲染性能:Markdown 解析缓存 | ⭐⭐ | todo | — | — | — | — |
+| T-202 | 分享/外部文本入口 | ⭐⭐⭐ | todo | — | — | — | — |
+| T-203 | AgentTaskService 单元测试(MockWebServer 全链路) | ⭐⭐⭐ | todo | — | — | — | — |
+| T-204 | 后台任务进行中提示条 | ⭐ | **blocked(等 T-202 完成,同文件)** | — | — | — | — |
+| T-205 | CHANGELOG.md 全量补写(v1.0→v4.3) | ⭐ | todo | — | — | — | — |
 
-## 项目速览(所有 AI 必读)
+## 项目速览(所有 AI 必读,以 main 分支为准)
 
-- 语言/构建:Kotlin + Android SDK 34(minSdk 26),`./gradlew testDebugUnitTest` 跑测试,`./gradlew assembleDebug` 出 APK。
-- 包名:`com.openclaw.clawagent`;主源码在 `app/src/main/java/com/openclaw/clawagent/`,测试在 `app/src/test/java/com/openclaw/clawagent/`。
-- Agent 工具体系:`agent/` 包。`AgentTool` 接口(name/description/parametersJson/execute),`AgentToolbox` 注册表(core() 纯 JVM 可测 / forAndroid() 完整集),行为指令在 `agent/AgentDirective.kt`。
-- 代码风格:注释讲"为什么"而非"是什么";用户可见文案用中文;JSON 参数描述中文。
-- 当前版本 4.3.0-alpha.1(versionCode 15)。模块::app(Compose UI + 后台 Service) / :core-agent(传输、AgentLoop、MCP 客户端) / :core-tools(内置工具) / :data(Room)。11 个内置工具:calculator / current_time / notes / http_get / web_search / task_plan / device_info / clipboard / notify / remind / open_url;另可接入任意 MCP 远程服务器工具(v4.2)。
+- **产品**:Claw Agent——真正会干活的 Android AI Agent(工具调用/联网/记忆/提醒/MCP/后台任务)。
+- **版本**:v4.3.0-alpha.1(versionCode 15),Kotlin 1.9.20 + Android SDK 34(minSdk 26),Compose UI + MVI。
+- **多模块**:`:app`(Compose UI + Android 工具 + 后台服务)、`:core-agent`(纯 JVM:AgentLoop/OpenAI 协议/SSE/MCP 客户端/用量台账)、`:core-tools`(纯 JVM 六工具)、`:data`(Room 会话树)。`grep -rn "android\." core-agent/src/main core-tools/src/main` 必须为零——禁 Android import。
+- **MVI**:`ui/ChatViewModel.kt` 持有 ChatUiState/ChatIntent/ChatEffect 单向流;消息列表是 RecyclerView(`MessageAdapter`,ListAdapter+DiffUtil)经 AndroidView 桥接进 Compose。
+- **会话树所有权**:`task/ChatRepository.kt` 进程单例持 tree/storage/prefs/chatService/agentLoop;ViewModel 经 `private val tree get() = ChatRepository.tree` 引用;后台任务 `task/AgentTaskService.kt`(前台服务)与 VM 共享同一棵树。
+- **MCP**:`:core-agent` 的 `mcp/` 包(Streamable HTTP,spec 2025-11-25);远程工具以 `mcp_` 前缀进工具箱。
+- **测试**:JUnit4;`:core-agent` 用 OkHttp 拦截器假网络(无 mockwebserver);app 模块 Robolectric,`Dispatchers.setMain(Dispatchers.Unconfined)` 模式(禁用 UnconfinedTestDispatcher——跨线程 resume 会被虚拟调度器卡死)。全量测试命令见铁律 4。
+- **约定**:工具 `execute` 永不 throw(失败返回模型可读的错误字符串);用户可见文案中文;注释讲"为什么";`AgentRequest.maxRounds=15` 防死循环。
+- **CI**:GitHub Actions,push 即全量测试;tag `v*` 自动构建签名 APK 挂 Releases。
