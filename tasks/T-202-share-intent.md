@@ -49,4 +49,20 @@
 
 ## 交付记录
 
-(完成后填写:认领人 / commit / 关键决策 / 测试结果)
+- **认领人**:哈哈
+- **交付 commit**:`ddcaa033`
+- **状态**:done;CI 全绿(GitHub Actions run `34695408779`,既有 + 新增用例零回归)
+
+**关键决策 / 修改点**
+- `ChatRepository`:新增 `@Volatile var pendingShare: String?` 进程内一次性槽(与 `AgentTaskService.pending` 同款手法)。刻意不被 `reset()` 清空——分享槽在 MainActivity 创建之前写入,一次 reset 会抹掉尚未消费的文本。
+- 新建 `ShareReceiverActivity`:`exported=true` + `Theme.NoDisplay` + `ACTION_SEND`/`text/*` intent-filter;取 `EXTRA_TEXT`(非空)写入 `pendingShare`,再拉起 `MainActivity`,`onCreate` 内立即 `finish()`。解析逻辑抽成静态 `stashShare(intent)` 便于纯 JVM 断言,也避免测试里真的启动 MainActivity。
+- `ChatViewModel`:`ChatUiState` 加 `draft: String?`;`ChatIntent` 加 `SetDraft(text)` / `ClearDraft`;`onIntent` 写/清 `state.draft`。`canSend` 不参与草稿判定,既有语义不变。
+- `MainActivity`:`onCreate` 与 `onStart` 两处都调 `consumePendingShare()`(冷/热启动双保险,幂等);消费即清槽并 `SetDraft`。
+- `ChatScreen`:InputBar 新增 `onConsumeDraft` 回调,`LaunchedEffect(state.draft)` 填入输入框后立刻回调清槽,防重组重复填充。
+- `AndroidManifest.xml`:注册 `ShareReceiverActivity`;`README.md`「其他功能」加一条分享入口。
+
+**手工验收路径(请维护者真机确认)**:浏览器/微信选中文本 → 系统分享 → 选「Claw Agent」→ App 打开,输入框已带内容、光标可编辑,**未自动发送**。
+
+**测试结果**:`gradle :core-agent:test :core-tools:test :data:testDebugUnitTest :app:testDebugUnitTest` 全绿(CI)。
+
+**环境说明**:执行沙盒(JDK 25、带宽受限)无法本地运行 `:app` 单测,故以 CI 验证。
