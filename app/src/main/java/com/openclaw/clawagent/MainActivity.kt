@@ -60,6 +60,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var adapter: MessageAdapter
     private lateinit var recyclerView: RecyclerView
 
+    /**
+     * T-301:加载更早消息前的滚动锚点([itemCount, firstVisiblePosition, topOffset]),
+     * 用于 prepend 后把视口钉回原位,避免列表跳动。
+     */
+    private var olderAnchor: IntArray? = null
+
     private val galleryPicker = registerForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri -> vm.onGalleryResult(uri) }
@@ -138,6 +144,19 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             vm.state.collect { st ->
                 adapter.submitList(st.messages)
+                // T-301:加载更早消息后,把视口钉回锚点(项数差 = 新增的旧消息数)。
+                olderAnchor?.let { anchor ->
+                    val delta = st.messages.size - anchor[0]
+                    val pos = anchor[1] + delta
+                    val offset = anchor[2]
+                    if (delta > 0) {
+                        recyclerView.post {
+                            (recyclerView.layoutManager as? LinearLayoutManager)
+                                ?.scrollToPositionWithOffset(pos, offset)
+                        }
+                    }
+                    olderAnchor = null
+                }
             }
         }
 
@@ -153,9 +172,24 @@ class MainActivity : ComponentActivity() {
                     layoutManager = LinearLayoutManager(ctx).apply { stackFromEnd = true }
                     adapter = this@MainActivity.adapter
                     recyclerView = this
+                    // T-301:向上滚到顶且还有更早消息时,记下锚点并请求上一页。
+                    addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                        override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
+                            if (dy >= 0) return
+                            val lm = rv.layoutManager as? LinearLayoutManager ?: return
+                            if (lm.findFirstVisibleItemPosition() != 0) return
+                            if (!vm.state.value.hasMoreMessages) return
+                            val first = lm.findViewByPosition(0) ?: return
+                            olderAnchor = intArrayOf(rv.adapter?.itemCount ?: 0, 0, first.top)
+                            vm.onIntent(ChatIntent.LoadOlder)
+                        }
+                    })
                 }
             },
-            update = { rv -> rv.post { rv.scrollToPosition(adapter.itemCount - 1) } },
+            // 加载更早消息时不要抢着滚到底,交给锚点还原处理。
+            update = { rv ->
+                if (olderAnchor == null) rv.post { rv.scrollToPosition(adapter.itemCount - 1) }
+            },
         )
     }
 

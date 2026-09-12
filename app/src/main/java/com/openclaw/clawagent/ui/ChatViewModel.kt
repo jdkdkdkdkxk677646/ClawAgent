@@ -56,6 +56,10 @@ data class ChatUiState(
     val backgroundTaskRunning: Boolean = false,
     /** T-202:外部分享进来的待填草稿;填入输入框后由 ClearDraft 清除。 */
     val draft: String? = null,
+    /**
+     * T-301:是否还有更早的消息未显示(窗口化分页)。UI 滚到顶时据此请求更早的一页。
+     */
+    val hasMoreMessages: Boolean = false,
 ) {
     val showWelcome: Boolean get() = messages.isEmpty()
     val canSend: Boolean get() = !isSending && !isLoading && !backgroundTaskRunning
@@ -80,6 +84,8 @@ sealed class ChatIntent {
     data class SetDraft(val text: String) : ChatIntent()
     /** T-202:草稿已填入,清空一次性槽,避免重复触发。 */
     data object ClearDraft : ChatIntent()
+    /** T-301:向更早的方向再扩一页窗口(UI 滚到顶时触发)。 */
+    data object LoadOlder : ChatIntent()
 }
 
 /** 一次性副作用,由 Activity 消费(Toast/选择器/剪贴板/分享)。 */
@@ -121,6 +127,9 @@ class ChatViewModel(
     private val pendingImages = mutableListOf<String>()
     private var pendingPhotoFile: File? = null
     private var sendJob: Job? = null
+
+    // T-301:UI 窗口大小——只影响渲染副本(_state.messages),会话树始终全量。
+    private var windowLimit = INITIAL_WINDOW
 
     // ── MCP(v4.2):远程爪子,握手成功后才进工具清单 ──────────────────
     @Volatile private var mcpTools: List<com.openclaw.clawagent.agent.AgentTool> = emptyList()
@@ -213,6 +222,7 @@ class ChatViewModel(
                 _state.value = _state.value.copy(draft = intent.text)
             ChatIntent.ClearDraft ->
                 _state.value = _state.value.copy(draft = null)
+            ChatIntent.LoadOlder -> loadOlder()
         }
     }
 
@@ -468,7 +478,10 @@ class ChatViewModel(
         val history = if (!prefs.keepContext) {
             systemMessages + listOf(ChatService.Message("user", text))
         } else {
-            val base = _state.value.messages.dropLast(1)
+            // T-301:必须读会话树全量,而不是被窗口化的 state.messages——否则分页会
+            // 把发给模型的上下文悄悄截断。当前 user 已进树(sendMessage 里
+            // tree.appendMessage),故这里等价于旧的 messages.dropLast(1)。
+            val base = tree.visibleMessages()
                 .map { ChatService.Message(it.role, it.content) }
             val limit = prefs.contextLimit
             val limited = if (limit > 0) base.takeLast(limit) else base
@@ -643,10 +656,24 @@ class ChatViewModel(
         _state.value = s.copy(messages = msgs.map { ChatMessage(it.role, it.content) })
     }
 
+    /**
+     * T-301:只把尾部 [windowLimit] 条灌进渲染副本,超长会话不再全量绑定;
+     * [ChatUiState.hasMoreMessages] 告诉 UI 是否还能往上加载。会话树本身始终全量。
+     */
     private fun syncMessages() {
+        val all = tree.visibleMessages()
+        val shown = if (all.size > windowLimit) all.takeLast(windowLimit) else all
         _state.value = _state.value.copy(
-            messages = tree.visibleMessages().map { ChatMessage(it.role, it.content) }
+            messages = shown.map { ChatMessage(it.role, it.content) },
+            hasMoreMessages = all.size > shown.size,
         )
+    }
+
+    /** T-301:向更早方向扩一页窗口。 */
+    private fun loadOlder() {
+        windowLimit += WINDOW_PAGE
+        syncMessages()
+        publish()
     }
 
     private fun publish() {
@@ -666,6 +693,10 @@ class ChatViewModel(
     companion object {
         private const val MAX_TOOL_ROUNDS = 15
         private const val MAX_IMAGE_BYTES = 4 * 1024 * 1024
+
+        /** T-301:首屏窗口大小与"加载更早"的步长(单位:条)。 */
+        private const val INITIAL_WINDOW = 50
+        private const val WINDOW_PAGE = 50
 
         /** 手工装配(无 DI 框架);依赖图短。数据所有权归 ChatRepository。 */
         fun factory(activity: androidx.activity.ComponentActivity) =
