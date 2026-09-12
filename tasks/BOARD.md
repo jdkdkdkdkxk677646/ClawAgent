@@ -77,3 +77,30 @@
 - **测试**:JUnit4;`:core-agent` 用 OkHttp 拦截器假网络(无 mockwebserver);app 模块 Robolectric,`Dispatchers.setMain(Dispatchers.Unconfined)` 模式(禁用 UnconfinedTestDispatcher——跨线程 resume 会被虚拟调度器卡死)。全量测试命令见铁律 4。
 - **约定**:工具 `execute` 永不 throw(失败返回模型可读的错误字符串);用户可见文案中文;注释讲"为什么";`AgentRequest.maxRounds=15` 防死循环。
 - **CI**:GitHub Actions,push 即全量测试;tag `v*` 自动构建签名 APK 挂 Releases。
+
+## Backlog(待规划,尚未立卡)
+
+> 以下是"之后要做"的候选方向,**尚未立卡**;需要时再切成 T-4xx 任务卡(每卡一份文件白名单)。Roadmap 里的三项已由第三批完成,这里列的是更新一轮的后续。
+
+**发布 / 交付(多为维护者动作,AI 干不了)**
+- 配置签名 secrets(`KEYSTORE_BASE64` / `KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD`)——正式签名 APK 的前提
+- 真机回归:相机往返 / 分页手势 / 系统分享 / 后台横幅(CI 测不到的部分)
+
+**质量 / 工程**
+- 消息列表 stableId(已立 T-306,可选)
+- UI 交互测试升级:引入 Compose `ui-test` 或真机 e2e(Maestro),覆盖目前只能手工的路径
+- 覆盖率与边界测试补强;`:app` 单测在 CI 之外的可复现性(本地无 Android SDK 的替代方案)
+- 可观测性:崩溃 / 日志(需先评估隐私与依赖体积)
+
+**产品 / 能力**
+- 更多 Agent 爪子(日历 / 联系人 / 文件 / 代码执行等,受权限与安全约束)
+- MCP 增强:多服务器、更多鉴权方式、SSE 传输
+- 会话搜索 / 跨会话检索(笔记已有检索,会话没有)
+- 语音输入 / TTS 输出
+- 后台任务增强:取消、队列、多任务并行
+- 服务商与模型:更多预设 / 本地模型打磨(Ollama 已支持)
+- i18n 与无障碍
+
+**文档 / 体验**
+- 首次使用引导(权限申请、Agent 模式的解释)
+- README / 截图 / 发布说明完善
