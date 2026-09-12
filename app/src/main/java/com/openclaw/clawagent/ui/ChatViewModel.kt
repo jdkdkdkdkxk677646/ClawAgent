@@ -225,26 +225,38 @@ class ChatViewModel(
     // ── images ───────────────────────────────────────────────────
 
     /**
-     * T-303:生成拍照用的临时文件 URI。拍照的**发起**交给 UI 层在 Compose 内用
-     * `rememberLauncherForActivityResult(TakePicture)` 完成(launcher 必须留在
-     * composition 里);这里只负责"建文件 + 出 URI + 记住待清理的临时文件"。
-     * 失败时发 Toast 并返回 null。
+     * T-303:新建拍照用的临时文件(并记为待清理)。文件名沿用 `IMG_*.jpg`,落在
+     * cacheDir/photos(FileProvider 的 file_paths 根)。刻意与 FileProvider 解耦,
+     * 便于 JVM 下单测。
      */
-    fun prepareCamera(): Uri? {
+    internal fun newCameraTempFile(): File {
         val dir = File(appContext.cacheDir, "photos").apply { mkdirs() }
         val name = "IMG_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
             .format(Date()) + ".jpg"
         val file = File(dir, name)
-        val uri: Uri = try {
+        pendingPhotoFile = file
+        return file
+    }
+
+    /**
+     * T-303:生成拍照用的 FileProvider URI。拍照的**发起**交给 UI 层在 Compose 内用
+     * `rememberLauncherForActivityResult(TakePicture)` 完成(launcher 必须留在
+     * composition 里),不再走 Activity 层的 effect。失败发 Toast 并返回 null。
+     *
+     * 注:`FileProvider.getUriForFile` 依赖真实 PackageManager,在 Robolectric 下不可用
+     * (无 `resolveContentProvider` shadow),故"建文件"拆到 [newCameraTempFile] 单测,
+     * URI 一段由真机验收覆盖。
+     */
+    fun prepareCamera(): Uri? {
+        val file = newCameraTempFile()
+        return try {
             androidx.core.content.FileProvider.getUriForFile(
                 appContext, "${appContext.packageName}.fileprovider", file
             )
         } catch (e: Exception) {
             _effects.trySend(ChatEffect.Toast("无法启动相机:${e.message}"))
-            return null
+            null
         }
-        pendingPhotoFile = file
-        return uri
     }
 
     fun onCameraResult(success: Boolean) {

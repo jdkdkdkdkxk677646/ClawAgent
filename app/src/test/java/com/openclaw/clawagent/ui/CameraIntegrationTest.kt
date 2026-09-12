@@ -1,7 +1,6 @@
 package com.openclaw.clawagent.ui
 
 import android.content.Context
-import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import com.openclaw.clawagent.agent.AgentLoop
 import com.openclaw.clawagent.conversation.ClawDatabase
@@ -19,7 +18,6 @@ import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -30,9 +28,10 @@ import java.io.File
 /**
  * T-303 拍照输入的 Compose 整合测试。
  *
- * 相机的真实往返(`ActivityResultContracts.TakePicture`)无法单测,这里覆盖 VM
- * 侧的管道契约:`prepareCamera()` 产出的 FileProvider URI 与临时文件、
- * `onCameraResult()` 的成功 / 取消 / 超限三条分支。
+ * 相机的真实往返(`ActivityResultContracts.TakePicture`)与 FileProvider 生成的
+ * content URI 都无法在 JVM 下单测(Robolectric 无 `resolveContentProvider` shadow),
+ * 因此这里覆盖**可单测的管道契约**:临时文件落在 cacheDir/photos 且命名 `IMG_*.jpg`,
+ * 以及 `onCameraResult()` 的成功 / 取消 / 超限三条分支。URI 的 authority 由真机验收。
  */
 @RunWith(RobolectricTestRunner::class)
 class CameraIntegrationTest {
@@ -76,24 +75,24 @@ class CameraIntegrationTest {
         }
     }
 
-    /** The temp file backing [uri] (FileProvider root is cacheDir/photos). */
-    private fun photoFile(uri: Uri): File =
-        File(File(context.cacheDir, "photos"), uri.lastPathSegment!!)
-
     @Test
-    fun `prepareCamera yields a fileprovider uri under cache photos`() {
+    fun `camera temp file lives under cache photos with an IMG name`() {
         val vm = viewModel()
-        val uri = vm.prepareCamera()
 
-        assertNotNull(uri)
-        assertEquals("${context.packageName}.fileprovider", uri!!.authority)
-        assertTrue("临时文件目录应为 cacheDir/photos", photoFile(uri).parentFile!!.isDirectory)
+        val file = vm.newCameraTempFile()
+
+        assertEquals(
+            File(context.cacheDir, "photos").canonicalPath,
+            file.parentFile!!.canonicalPath,
+        )
+        assertTrue("文件名应为 IMG_*.jpg,实际 ${file.name}", file.name.startsWith("IMG_"))
+        assertTrue(file.name.endsWith(".jpg"))
     }
 
     @Test
     fun `cancelled capture does not stage an image`() {
         val vm = viewModel()
-        assertNotNull(vm.prepareCamera())
+        vm.newCameraTempFile()
 
         vm.onCameraResult(false)
 
@@ -103,8 +102,8 @@ class CameraIntegrationTest {
     @Test
     fun `oversized photo is rejected without staging`() {
         val vm = viewModel()
-        val uri = vm.prepareCamera()!!
-        photoFile(uri).writeBytes(ByteArray(4 * 1024 * 1024 + 1))
+        val file = vm.newCameraTempFile()
+        file.writeBytes(ByteArray(4 * 1024 * 1024 + 1)) // > MAX_IMAGE_BYTES
 
         vm.onCameraResult(true)
 
@@ -114,9 +113,9 @@ class CameraIntegrationTest {
     @Test
     fun `successful capture stages one image`() = runBlocking {
         val vm = viewModel()
-        val uri = vm.prepareCamera()!!
+        val file = vm.newCameraTempFile()
         // A tiny fake JPEG payload.
-        photoFile(uri).writeBytes(byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0x01, 0x02))
+        file.writeBytes(byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0x01, 0x02))
 
         vm.onCameraResult(true)
 
