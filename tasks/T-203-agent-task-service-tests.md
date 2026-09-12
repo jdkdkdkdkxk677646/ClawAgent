@@ -42,4 +42,17 @@ v4.3 新增的后台任务:发送栏 ☕→🚀 后,`ChatViewModel.sendMessage` 
 
 ## 交付记录
 
-(完成后填写:认领人 / commit / 关键决策 / 测试结果)
+- **认领人**:哈哈
+- **交付 commit**:`c7900aea`(测试文件)、`ea4d624`(build.gradle 追加 mockwebserver 依赖)
+- **状态**:done;CI 全绿(GitHub Actions run `34694778187`,121 tests / 0 failed,既有用例零回归)
+
+**关键决策 / 修改点**
+- 新增 `app/src/test/java/com/openclaw/clawagent/task/AgentTaskServiceTest.kt`:6 个用例。用真实的 `ChatRepository`(真实 `ChatService`/`AgentLoop`)+ `MockWebServer` 手写 OpenAI SSE 帧,**只伪造网络**;经 `AgentTaskService.enqueue` + `onStartCommand` 驱动,与平台启动路径一致。
+- 用例:①快乐路径(两轮 SSE:先 `tool_calls` 后收尾文本;断言气泡含 `🔧 calculator` / `↳ 4` / 结尾答案,请求数=2);②传输失败(HTTP 500)降级为 `⚠️` 气泡且仍落库 + 发通知;③通知:service shadow 的 `lastForegroundNotificationId` = `0xC1A3`,完成通知 `0xC1A4` 标题「✅ 后台任务完成」且文本含结果预览;④`enqueue` 静态槽每次消费、不堆积(两次独立任务各自落库,请求数=2);⑤结果写入 `PendingTask.branchId` 指定分支且用户当前分支不被劫持;⑥网络异常(死端口)出现 `⚠️ 出错了`。
+- **未修改 `AgentTaskService.kt`**:直接经 `enqueue` + `onStartCommand` 即可全链路测试,无需提函数或改可见性,产品代码行为 diff 为零。
+- `app/build.gradle.kts` 仅追加一行 `testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")`,未动其他依赖。
+- 坑:收尾的 `stopForeground(STOP_FOREGROUND_REMOVE)` 会 cancel 前台通知,故前台断言改用 service shadow 记录的 id,而不是完成后的实时通知。
+
+**测试结果**:`gradle :core-agent:test :core-tools:test :data:testDebugUnitTest :app:testDebugUnitTest` 全绿(CI)。
+
+**环境说明**:执行沙盒仅有 JDK 25 且带宽受限,无法本地运行 `:app` 单测(需 Android SDK + JDK 17),故以 CI 作为验证手段。
