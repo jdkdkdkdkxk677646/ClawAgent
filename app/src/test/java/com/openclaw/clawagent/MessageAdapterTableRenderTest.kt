@@ -317,11 +317,11 @@ class MessageAdapterTableRenderTest {
         assertEquals(1, parser.calls)
 
         // Third bind: mutated to content B — one new parse.
+        // The streaming scenario is approximated by submitting a new list
+        // with changed content and rebinding; the adapter can't mutate an
+        // already-submitted snapshot in place because DiffUtil does its
+        // own list handling.
         adapter.onBindViewHolder(vh, 0) // unchanged; still cache hit
-        vh.bindingAdapter // touch — just to silence the "unused" lint
-        // We can't easily mutate the snapshot from the outside because
-        // submitList deep-copies via DiffUtil. So simulate streaming
-        // by submitting a new list with the changed content and rebinding.
         adapter.submitList(listOf(ChatMessage("assistant", "beta")))
         shadowOf(Looper.getMainLooper()).idle()
         adapter.onBindViewHolder(vh, 0)
