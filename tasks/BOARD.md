@@ -35,7 +35,7 @@
 | T-201 | 流式渲染性能:Markdown 解析缓存 | ⭐⭐ | **done** | Mavis | 2026-09-12 09:10+0800 | db78db6 | LRU(content→Segment),默认 64,accessOrder+removeEldestEntry;同 content bind 复用、新 content 重新 parse;user 消息不参与 |
 | T-202 | 分享/外部文本入口 | ⭐⭐⭐ | **done** | 哈哈 | 2026-09-12 21:01+0800 | ddcaa033 | 新增 ShareReceiverActivity(ACTION_SEND text/*)写进程内槽→MainActivity 填草稿;ChatViewModel 加 draft/SetDraft/ClearDraft;InputBar LaunchedEffect 填入即清槽;只填草稿不自动发送 |
 | T-203 | AgentTaskService 单元测试(MockWebServer 全链路) | ⭐⭐⭐ | **done** | 哈哈 | 2026-09-12 20:01+0800 | c7900aea | 6 用例:MockWebServer+Robolectric 驱动 enqueue→onStartCommand→runTurn→fileResult 全链路(工具轮/传输失败降级/通知/静态槽/切分支/网络异常);未改 Service 本体 |
-| T-204 | 后台任务进行中提示条 | ⭐ | todo | — | — | — | — |
+| T-204 | 后台任务进行中提示条 | ⭐ | **claimed** | 哈哈 | 2026-09-12 21:18+0800 | — | — |
 | T-205 | CHANGELOG.md 全量补写(v1.0→v4.3) | ⭐ | **done** | 哈哈 | 2026-09-12 | 1c438bd | 170行,覆盖16个tag,v1.0~v4.3倒序,含维护约定段 |
 
 ## 项目速览(所有 AI 必读,以 main 分支为准)
