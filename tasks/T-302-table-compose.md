@@ -36,4 +36,19 @@ Markdown 表格目前用传统 View 渲染:`MessageAdapter.appendTableWidget()` 
 
 ## 交付记录
 
-(完成后填写:认领人 / commit / 关键决策 / 测试结果)
+- **认领人**:哈哈
+- **交付 commit**:`60d2f653`
+- **状态**:done;CI 全绿(GitHub Actions run `34697455374`,零回归)
+
+**关键决策 / 修改点**
+- 新建 `app/src/main/java/com/openclaw/clawagent/ui/MessageTable.kt`:Compose 原生表格。列宽用 `TextMeasurer` 按"该列最长单元格"测量后固定(复刻旧版 `TableLayout` 的列对齐),整体 `horizontalScroll` 横向滚动;表头底色 `#22263a` + 加粗,单元格 `#e2e8f0` 14sp / padding 12×10,行间 1dp `#2a2f3a` 分隔线——与旧 `item_table*.xml` 视觉对齐。
+- `MessageAdapter.appendTableWidget()`:`HorizontalScrollView` + `TableLayout` 改为一个 `ComposeView`(`setViewCompositionStrategy(DisposeOnViewTreeLifecycleDestroyed)`),`setContent { MessageTable(table) }`;长按复制仍挂 View 的 `OnLongClickListener`。删除已无用的 `buildTableRow()`。
+- 删除死资源 `item_table.xml` / `item_table_cell.xml` / `item_table_header_cell.xml`(提交以 `sha: null` 删除)。
+- 重写 `MessageAdapterTableRenderTest`:断言下调为"气泡面板里出现 `ComposeView`"这一结构级契约(含表格→1 个;多条表格→多个;纯文本/代码块/用户消息→0 个;rebind 幂等;长按复制),保留 T-201 parse-cache 的 4 个用例。未新增 compose-ui-test 依赖(不做像素级断言)。
+- 解析层 `MarkdownParser` 零改动,语义由 `MarkdownParserTest` 兜底。
+
+**手工验收路径(请维护者真机确认)**:让模型输出一段 Markdown 表格 → 表格以 Compose 渲染、可横向滑动、表头底色+加粗、行间分隔线,视觉与旧版一致。
+
+**测试结果**:`gradle :core-agent:test :core-tools:test :data:testDebugUnitTest :app:testDebugUnitTest` 全绿(CI)。
+
+**环境说明**:执行沙盒无法本地运行 `:app` 单测,故以 CI 验证。
