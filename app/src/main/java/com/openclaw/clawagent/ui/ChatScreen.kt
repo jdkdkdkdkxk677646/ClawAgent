@@ -1,5 +1,8 @@
 package com.openclaw.clawagent.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -108,6 +111,27 @@ fun ChatScreen(
                     messagesList()
                 }
             }
+
+            // T-204:后台任务进行中的常驻提示条(仅消费 state 的
+            // backgroundTaskRunning,不新增 state、无副作用)。
+            AnimatedVisibility(
+                visible = state.backgroundTaskRunning,
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                Text(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF1a1d27))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    text = "🦀 后台任务进行中——锁屏/切走都不中断,完成后会通知你",
+                    color = ClawColors.Accent,
+                    fontSize = 12.sp,
+                )
+            }
+
             InputBar(
                 state = state,
                 onSend = { onIntent(ChatIntent.SendMessage(it)) },
