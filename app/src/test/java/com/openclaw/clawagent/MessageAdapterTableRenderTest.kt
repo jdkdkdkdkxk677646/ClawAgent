@@ -305,31 +305,31 @@ class MessageAdapterTableRenderTest {
         val parser = CountingParser()
         val adapter = MessageAdapter(parser = parser, parseCacheSize = 64)
 
-        // First bind: content A.
-        adapter.submitList(listOf(ChatMessage("assistant", "alpha")))
+        // Stream the assistant reply in three increments. The data class
+        // is mutated in place — mirroring what the real model loop does
+        // to the tail message. Each rebind is a separate stream chunk,
+        // and each new content key is one cache miss.
+        val msg = ChatMessage("assistant", "")
+        adapter.submitList(listOf(msg))
         shadowOf(Looper.getMainLooper()).idle()
         val vh = adapter.onCreateViewHolder(LinearLayout(context), 0)
-        adapter.onBindViewHolder(vh, 0)
-        assertEquals(1, parser.calls)
 
-        // Same content — cache hit.
+        msg.content = "al"
         adapter.onBindViewHolder(vh, 0)
-        assertEquals(1, parser.calls)
+        assertEquals("first chunk should parse", 1, parser.calls)
 
-        // Now switch the visible list to content B. The adapter can't
-        // observe a single ChatMessage in place because the data class
-        // is shared with the live model; submitList is the supported way
-        // to change content. We rebind manually because the test-side
-        // holder isn't attached to a RecyclerView, so ListAdapter won't
-        // dispatch the diff on its own.
-        adapter.submitList(listOf(ChatMessage("assistant", "beta")))
-        shadowOf(Looper.getMainLooper()).idle()
+        msg.content = "alph"
         adapter.onBindViewHolder(vh, 0)
-        assertEquals("content change should add exactly one parse", 2, parser.calls)
+        assertEquals("second chunk should add exactly one parse", 2, parser.calls)
 
-        // And rebinding "beta" again is a cache hit, so the count stays.
+        msg.content = "alpha"
         adapter.onBindViewHolder(vh, 0)
-        assertEquals(2, parser.calls)
+        assertEquals("third chunk should add exactly one parse", 3, parser.calls)
+
+        // Revisiting an old content key is a cache hit.
+        msg.content = "alph"
+        adapter.onBindViewHolder(vh, 0)
+        assertEquals("revisiting an old key is a cache hit", 3, parser.calls)
     }
 
     @Test
