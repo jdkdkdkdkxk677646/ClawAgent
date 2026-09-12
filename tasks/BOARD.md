@@ -32,4 +32,4 @@
 - 包名:`com.openclaw.clawagent`;主源码在 `app/src/main/java/com/openclaw/clawagent/`,测试在 `app/src/test/java/com/openclaw/clawagent/`。
 - Agent 工具体系:`agent/` 包。`AgentTool` 接口(name/description/parametersJson/execute),`AgentToolbox` 注册表(core() 纯 JVM 可测 / forAndroid() 完整集),行为指令在 `agent/AgentDirective.kt`。
 - 代码风格:注释讲"为什么"而非"是什么";用户可见文案用中文;JSON 参数描述中文。
-- 当前版本 2.2.0-dev(versionCode 7),11 个工具:calculator / current_time / notes / http_get / web_search / task_plan / device_info / clipboard / notify / remind / open_url。
+- 当前版本 4.3.0-alpha.1(versionCode 15)。模块::app(Compose UI + 后台 Service) / :core-agent(传输、AgentLoop、MCP 客户端) / :core-tools(内置工具) / :data(Room)。11 个内置工具:calculator / current_time / notes / http_get / web_search / task_plan / device_info / clipboard / notify / remind / open_url;另可接入任意 MCP 远程服务器工具(v4.2)。

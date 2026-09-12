@@ -312,6 +312,11 @@ class ChatViewModel(
         if (model.isEmpty()) {
             assistantMsg.content = "⚠️ 还没有配置模型名称。请打开设置,在「模型」一栏填写后再试。"
             notifyChanged()
+            // Persist like the streaming path does (its finally appends to
+            // the tree), or this warning bubble vanishes on the next branch
+            // sync or process restart.
+            tree.activeBranch.messages.add(BranchMessage("assistant", assistantMsg.content))
+            persistTree()
             return
         }
 
@@ -458,11 +463,26 @@ class ChatViewModel(
 
     // ── branches / roles / copy ──────────────────────────────────
 
-    private fun startNewBranch() {
+    /**
+     * Branch operations while streaming detach the live bubble; branch
+     * operations while a background task runs race the service's own
+     * switchTo/append (it files results into the task branch). Block both,
+     * with a toast explaining why.
+     */
+    private fun branchOpsBlocked(verb: String): Boolean {
         if (_state.value.isLoading || _state.value.isSending) {
-            _effects.trySend(ChatEffect.Toast("生成中,请先停止再切换或新建分支"))
-            return
+            _effects.trySend(ChatEffect.Toast("生成中,请先停止再$verb"))
+            return true
         }
+        if (ChatRepository.backgroundTaskRunning) {
+            _effects.trySend(ChatEffect.Toast("后台任务正在写入会话,请稍候再$verb"))
+            return true
+        }
+        return false
+    }
+
+    private fun startNewBranch() {
+        if (branchOpsBlocked("新建分支")) return
         if (tree.activeBranch.messages.isEmpty()) {
             _effects.trySend(ChatEffect.Toast("当前分支已是空的"))
             return
@@ -474,7 +494,7 @@ class ChatViewModel(
     }
 
     private fun switchBranch(branchId: String) {
-        if (_state.value.isLoading || _state.value.isSending) return
+        if (branchOpsBlocked("切换分支")) return
         if (branchId == tree.activeBranchId) return
         tree.switchTo(branchId)
         syncMessages()
@@ -483,10 +503,7 @@ class ChatViewModel(
     }
 
     private fun deleteBranch(branchId: String) {
-        if (_state.value.isLoading || _state.value.isSending) {
-            _effects.trySend(ChatEffect.Toast("生成中,请先停止再删除分支"))
-            return
-        }
+        if (branchOpsBlocked("删除分支")) return
         val target = tree.allBranches.firstOrNull { it.id == branchId } ?: return
         if (target.parentId == null) {
             _effects.trySend(ChatEffect.Toast("根分支不可删除"))
@@ -499,10 +516,7 @@ class ChatViewModel(
     }
 
     private fun forkAt(position: Int) {
-        if (_state.value.isLoading || _state.value.isSending) {
-            _effects.trySend(ChatEffect.Toast("生成中,请先停止再分叉"))
-            return
-        }
+        if (branchOpsBlocked("分叉")) return
         val visible = tree.visibleMessages()
         if (position !in visible.indices) return
         val inherited = parentIndexOf(position) + 1
@@ -549,19 +563,28 @@ class ChatViewModel(
     private fun runDemo(text: String, msg: ChatMessage) {
         _state.value = _state.value.copy(isSending = true)
         publish()
-        viewModelScope.launch {
+        // Bound to sendJob so 停止 can interrupt the demo typewriter too —
+        // previously only the network coroutine was cancellable.
+        sendJob = viewModelScope.launch {
             val reply = when {
                 text.contains("你好") || text.lowercase().contains("hello") ->
                     "你好呀!👋\n\n我是 **Claw Agent** 🦀\n\n当前是演示模式,配置 API Key 后即可使用完整 Agent 能力。"
                 else ->
                     "你好!我是 **Claw Agent** 🦀\n\n当前是演示模式。请在设置中配置 API Key。\n\n支持:OpenAI / DeepSeek / 智谱 / Kimi / 硅基流动 等 13 家服务商。"
             }
-            for (i in 1..reply.length) {
-                msg.content = reply.substring(0, i)
-                notifyChanged(msg)
-                kotlinx.coroutines.delay(15)
+            try {
+                for (i in 1..reply.length) {
+                    msg.content = reply.substring(0, i)
+                    notifyChanged(msg)
+                    kotlinx.coroutines.delay(15)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Stopped mid-typewriter: keep the partial text (the network
+                // path does the same) instead of dropping it on the floor.
+                if (msg.content.isBlank()) msg.content = "⏹ 已停止生成"
             }
-            tree.activeBranch.messages.add(BranchMessage("assistant", reply))
+            // File the full or partial reply so it survives a refresh.
+            tree.activeBranch.messages.add(BranchMessage("assistant", msg.content))
             persistTree()
             _state.value = _state.value.copy(isSending = false)
             publish()

@@ -96,7 +96,13 @@ class McpClient(
     fun listTools(): List<McpToolDef> {
         val tools = ArrayList<McpToolDef>()
         var cursor: String? = null
+        var pages = 0
         do {
+            // A hostile or buggy server can hand out fresh cursors forever;
+            // cut the loop before it becomes a hang (and an OOM in `tools`).
+            if (++pages > MAX_LIST_PAGES) {
+                throw McpException("tools/list 翻了 ${MAX_LIST_PAGES} 页还没结束,疑似服务器分页死循环,已停止")
+            }
             val params = JSONObject()
             if (cursor != null) params.put("cursor", cursor)
             val reply = request("tools/list", params, expectReply = true)
@@ -112,6 +118,9 @@ class McpClient(
                     inputSchemaJson = t.optJSONObject("inputSchema")?.toString()
                         ?: """{"type":"object","properties":{}}""",
                 )
+            }
+            if (tools.size > MAX_TOOLS) {
+                throw McpException("MCP 服务器返回的工具数超过 $MAX_TOOLS,超出安全上限,已停止拉取")
             }
             cursor = result.optString("nextCursor", "").ifEmpty { null }
         } while (cursor != null)
@@ -198,7 +207,7 @@ class McpClient(
             .build()
 
         client.newCall(req).execute().use { resp ->
-            val body = resp.body?.string().orEmpty()
+            val body = readBodyCapped(resp)
             if (!resp.isSuccessful) {
                 throw McpException("HTTP ${resp.code} $method:${body.take(200)}")
             }
@@ -248,8 +257,8 @@ class McpClient(
     }
 
     private fun flattenContent(result: JSONObject): String {
-        val content = result.optJSONArray("content") ?: return result.toString()
-        return buildString {
+        val content = result.optJSONArray("content") ?: return truncateForModel(result.toString())
+        return truncateForModel(buildString {
             for (i in 0 until content.length()) {
                 val block = content.optJSONObject(i) ?: continue
                 when (block.optString("type")) {
@@ -260,7 +269,39 @@ class McpClient(
                 }
                 if (i < content.length() - 1) append("\n")
             }
+        })
+    }
+
+    /**
+     * Bounded tool output: the full text goes to the model (the UI preview is
+     * truncated separately by AgentLoop), but a hostile/verbose MCP server
+     * must not be able to dump unbounded text into the conversation and the
+     * next request payload.
+     */
+    private fun truncateForModel(text: String): String {
+        if (text.length <= MAX_TOOL_RESULT_CHARS) return text
+        return text.take(MAX_TOOL_RESULT_CHARS) +
+            "\n…(MCP 工具输出超长,已截断;原始长度 ${text.length} 字符)"
+    }
+
+    /**
+     * Reads at most [MAX_BODY_BYTES] of the response into memory — a hostile
+     * server returning a giant body must not OOM the app. Truncation usually
+     * just makes the JSON unparseable, which degrades to an error string at
+     * the caller (the never-throw contract).
+     */
+    private fun readBodyCapped(resp: Response): String {
+        val body = resp.body ?: return ""
+        val out = java.io.ByteArrayOutputStream()
+        body.byteStream().use { input ->
+            val buf = ByteArray(16 * 1024)
+            while (out.size() < MAX_BODY_BYTES) {
+                val n = input.read(buf, 0, minOf(buf.size, MAX_BODY_BYTES - out.size()))
+                if (n <= 0) break
+                out.write(buf, 0, n)
+            }
         }
+        return String(out.toByteArray(), Charsets.UTF_8)
     }
 
     private fun Request.Builder.applyAuth(): Request.Builder =
@@ -268,6 +309,13 @@ class McpClient(
 
     companion object {
         const val PROTOCOL_VERSION = "2025-11-25"
+
+        // Hardening caps against hostile/buggy MCP servers: bounded body
+        // read, bounded tool-result text, bounded pagination.
+        private const val MAX_BODY_BYTES = 1 shl 20          // 1 MiB per response
+        private const val MAX_TOOL_RESULT_CHARS = 20_000     // per tool result
+        private const val MAX_LIST_PAGES = 100               // tools/list pages
+        private const val MAX_TOOLS = 500                    // total tool count
     }
 }
 

@@ -137,8 +137,18 @@ class AgentTaskService : Service() {
     private suspend fun fileResult(task: PendingTask, result: String) {
         try {
             val tree = ChatRepository.tree
+            // The user may have browsed to another branch while the task ran
+            // in the background. File the result into the task's own branch,
+            // then restore whatever branch the user had selected — otherwise
+            // a finished background task silently hijacks their view.
+            val userBranchId = tree.activeBranchId
             tree.switchTo(task.branchId)
             tree.appendMessage("assistant", result)
+            if (userBranchId != task.branchId &&
+                tree.allBranches.any { it.id == userBranchId }
+            ) {
+                tree.switchTo(userBranchId)
+            }
             ChatRepository.save()
         } catch (_: Exception) {
             // Tree filing is best-effort; the notification still tells the user.

@@ -253,6 +253,69 @@ class McpClientTest {
         assertTrue(c.callTool("nope", "{}").contains("unknown tool"))
     }
 
+    // ── hardening caps (hostile/buggy servers) ────────────────────
+
+    @Test
+    fun `oversized tool output is truncated with a note`() {
+        val big = "x".repeat(30_000)
+        val server = routingServer { method, request ->
+            when (method) {
+                "tools/call" -> jsonReply(request, JSONObject()
+                    .put("result", JSONObject()
+                        .put("content", JSONArray()
+                            .put(JSONObject().put("type", "text").put("text", big)))))
+                else -> error("unexpected $method")
+            }
+        }
+        val out = client(server).callTool("t", "{}")
+        // 20 000 chars of payload + a bounded truncation note.
+        assertTrue(out.length < 20_100)
+        assertTrue(out.startsWith("x".repeat(100)))
+        assertTrue(out.contains("已截断"))
+        assertTrue(out.contains("原始长度 30000"))
+    }
+
+    @Test
+    fun `hostile endless pagination is cut off`() {
+        var calls = 0
+        val server = routingServer { method, request ->
+            when (method) {
+                "tools/list" -> {
+                    calls++
+                    jsonReply(request, JSONObject()
+                        .put("result", JSONObject()
+                            .put("tools", JSONArray())
+                            .put("nextCursor", "page-$calls")))
+                }
+                else -> error("unexpected $method")
+            }
+        }
+        val ex = org.junit.Assert.assertThrows(McpException::class.java) {
+            client(server).listTools()
+        }
+        assertTrue(ex.message!!.contains("死循环"))
+        // The guard throws on the 101st page attempt, before issuing it.
+        assertEquals(100, calls)
+    }
+
+    @Test
+    fun `giant response body degrades to an error string, not an OOM`() {
+        val huge = "x".repeat(1_500_000)
+        val server = routingServer { method, request ->
+            when (method) {
+                "tools/call" -> plain(request)
+                    .header("Content-Type", "application/json")
+                    .body(huge.toByteArray().toResponseBody("application/json".toMediaType()))
+                    .build()
+                else -> error("unexpected $method")
+            }
+        }
+        val out = client(server).callTool("t", "{}")
+        // The capped reader (1 MiB) makes the body unparseable JSON, which
+        // degrades through the never-throw contract into an error string.
+        assertTrue(out.startsWith("MCP 工具调用失败"))
+    }
+
     // ── helpers ────────────────────────────────────────────────────
 
     private fun routingServer(route: (method: String, request: Request) -> Response) =
