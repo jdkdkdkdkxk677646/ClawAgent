@@ -6,11 +6,21 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [v4.3.0] - 2026-09-13
 
 ### Added
 
-- 无
+- **Agent 后台任务**：发送栏 ☕→🚀 切换后台执行，回合跑在前台服务里，锁屏/切走不中断，完成推送通知，结果自动写回会话。`AgentTaskService` 前台服务 + 多轮 AgentLoop 循环，后台与主会话共享同一会话树。
+- **消息列表分页**：超长会话窗口化渲染（`takeLast 50`），滚顶自动加载更早消息（`LoadOlder`），并做锚点还原，避免位置跳动。
+- **表格渲染升级为 Compose 原生**：横向滚动 + 列宽对齐，替换旧 XML 表格。
+- **拍照直拍的 Compose 内整合**：📷 入口改为 `AttachmentSheet`（拍照 / 相册）可见入口，拍照走 Compose `rememberLauncherForActivityResult(TakePicture)`。
+- **系统分享入口**：`ShareReceiverActivity` 接收 `ACTION_SEND` 文本 → 填入输入框草稿（只填不自动发送）。
+- **后台任务进行中提示条**：消息区与输入栏之间的淡入淡出横幅，仅后台回合运行时显示。
+
+### Fixed
+
+- Robolectric 测试中会话树泄漏：`reset()` 重新绑定状态，避免跨测试污染。
+- 流式输出气泡不更新：`notifyChanged` 每轮从 live object 重建尾部。
 
 ---
 

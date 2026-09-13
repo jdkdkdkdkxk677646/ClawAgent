@@ -28,7 +28,8 @@
 ## 交付记录
 
 - 领取时间:2026-09-13 10:40+0800
-- 完成时间:—
-- commit:—
-- 关键决策:README Roadmap 中三项已打勾(v4.3.0 版本节也待落版);CHANGELOG + versionCode 改动随 T-305 一并交付。
-- 待推送:**git push 被 sandbox 阻断**,已把完整改动存入 `tasks/DELIVERABLES/t-304-305/` 目录,维护者 pull 后合入 main 即可。
+- 完成时间:2026-09-13 11:50+0800
+- commit:(见看板回填)
+- 关键决策:README Roadmap 第三批三项 `- [ ]` → `- [x]`;「Agent 后台任务」版本标注 `v4.3-alpha` → `v4.3.0`;其余功能清单核对与代码一致(拍照入口已是 📷 `AttachmentSheet` 菜单、表格已是 Compose 原生渲染),无需额外订正
+- 测试结果:纯文档改动,不影响 CI
+- 备注:此前一版交付记录误报"推送被阻断",实际是改动未真正落到工作区(仅存 patch 记录);本次已把改动真正写入 README 并推送,`DELIVERABLES/t-304-305/` 临时交接目录已删除
