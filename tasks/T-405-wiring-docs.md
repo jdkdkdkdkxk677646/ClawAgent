@@ -35,9 +35,12 @@
 
 ## 交付记录
 
-(领取时填:领取时间;完成后填:完成时间 / commit / 关键决策 / 测试结果)
-- 领取时间:—
-- 完成时间:—
-- commit:—
-- 接线核对清单:—
-- 关键决策/测试结果:—
+- 领取时间:2026-09-13 13:20+0800
+- 完成时间:2026-09-13 13:40+0800
+- commit:(见看板回填)
+- 接线核对清单:
+  - [x] **T-401 待接线** → `AgentWiring.forAndroid` 增加 `JsTool()`(置于 `PlanTool()` 之后,与 `Toolsets.core()` 顺序一致)
+  - [x] **T-402 待接线** → `HttpRequestTool()` 改为 `HttpRequestTool(AndroidWebRenderer(context.applicationContext))`
+  - [x] T-403 / T-404 无"待接线"条目,无需接线
+- 关键决策/测试结果:README「11 只爪子」→「12 只」、工具表新增 `🧩 run_js` 行、`http_get` 行补 `render_js=true`、`notes` 行改"分词评分检索(CJK 二元组,支持近义召回)"、配置说明「9 个内置工具」→「12 个」、架构图 `:core-tools`「六只」→「七只」;CHANGELOG 新增 `## [Unreleased]` 段记录第五批四项(未新开版本号)。core 全量 **213 用例零回归**
+- 说明:`AgentWiring` 接线仅在 `:app`(本地沙盒无 Android SDK 无法编译),由 CI 全量构建兜底——接线错误会在 CI 编译期直接暴露;`run_js` 与 `render_js=true` 均走既有「工具配置」开关路径,可独立启停

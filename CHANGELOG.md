@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`run_js` 代码执行沙箱**：受限 Rhino 1.7.14 解释执行 JavaScript —— 禁用 Java 访问（ClassShutter）、指令预算 + 墙钟超时双保险、防递归爆栈、每次全新作用域；精确计算 / JSON 加工 / 日期推算不再靠模型口算。
+- **`http_get` JS 渲染模式**：新增 `render_js=true`，把 URL 交给可插拔的 `WebRenderer`（`:app` 的 WebView 实现）执行页面 JS 后再走同一套净化/截断管线；SPA / 客户端渲染页面不再抓回空壳。
+- **`notes` 分词评分检索**：拉丁整词 + CJK 二元组分词，精确命中 ≫ 标题 ≫ 正文（全部词元命中加成），Top 5 带 snippet —— 语义记忆召回不再依赖逐字命中。
+- **文本内嵌工具调用兜底**：`ToolCallParser` 从 `:app` 迁入 `:core-agent` 并加固（字符串感知的平衡括号扫描，可解析嵌套参数）；`AgentLoop` 在无原生 `tool_calls` 时按**已注册工具名**过滤后执行，兼容不支持 Function Calling 的服务商。
+
+### Fixed
+
+- `ToolCallParser` 宽松正则 `[^{}]*` 无法匹配嵌套 `parameters` 对象的问题 —— 改用平衡括号扫描。
+
+---
+
 ## [v4.3.0] - 2026-09-13
 
 ### Added

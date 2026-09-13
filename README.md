@@ -4,13 +4,13 @@
 
 ## 它凭什么不是"单纯的聊天"?
 
-开启设置里的 **🦾 Agent 模式**,Claw Agent 就长出了 11 只爪子:
+开启设置里的 **🦾 Agent 模式**,Claw Agent 就长出了 12 只爪子:
 
 | 工具 | 能力 | 典型场景 |
 | --- | --- | --- |
 | 🔍 `web_search` | 联网搜索(DuckDuckGo,免 key) | "查一下 DeepSeek API 现在多少钱" |
-| 🌐 `http_get` | 抓取任意 HTTP(S) 网页 / API,HTML 自动转纯文本 | 读文档、看公告、调公开 API |
-| 📓 `notes` | Agent 自己的持久笔记本,跨会话保存 + 关键词检索 | "记住我喝拿铁不加糖"、"我之前记过什么?" |
+| 🌐 `http_get` | 抓取任意 HTTP(S) 网页 / API,HTML 自动转纯文本;SPA/动态页面用 `render_js=true` 走内置引擎渲染 | 读文档、看公告、调公开 API |
+| 📓 `notes` | Agent 自己的持久笔记本,跨会话保存 + 分词评分检索(CJK 二元组,支持近义召回) | "记住我喝拿铁不加糖"、"我之前记过什么?" |
 | 📋 `task_plan` | 任务规划与进度追踪(☐/☑ 实时清单) | 复杂任务先列计划,每完成一步自动汇报 |
 | 🔋 `device_info` | 型号、系统、电量、内存、存储、网络、屏幕 | "我手机内存还够吗?" |
 | 📋 `clipboard` | 读写系统剪贴板 | "把剪贴板这段总结一下" / "生成文案并复制" |
@@ -18,6 +18,7 @@
 | ⏰ `remind` | 延时提醒(AlarmManager,进程被杀/重启都能恢复) | "10 分钟后提醒我关火" |
 | 🌍 `open_url` | 在浏览器打开网页 | "给我看这篇的原文" |
 | 🧮 `calculator` / 🕐 `current_time` | 精确四则幂运算 / 设备当前时间 | 不靠模型口算、不靠模型猜日期 |
+| 🧩 `run_js` | 受限沙箱执行 JavaScript(禁 Java 访问、防死循环),结果可 JSON 化 | 精确计算 / JSON 加工 / 日期推算,不再靠模型口算 |
 
 配合 15 轮工具循环与内置的行为指令(先规划→逐步执行→失败重试→汇报总结),它处理的是**多步任务**:"查一下 DeepSeek 现在 API 多少钱一台,记录到笔记里,晚上 8 点提醒我看"——这一句话,Agent 自己拆步骤、自己调工具、自己交付。
 
@@ -92,7 +93,7 @@ APK 输出路径:`app/build/outputs/apk/debug/app-debug.apk`
 | 上下文长度 | 随请求发送的最近历史条数(默认 20 条,可设 10 / 20 / 50 / 不限制) |
 | 流式输出 | 逐字返回;关闭则整段返回 |
 | 系统提示词 | 每次请求自动附加的 system 消息,用于设定人设与规则 |
-| 🦾 Agent 模式 | 允许模型自主多步调用 9 个内置工具(单次最多 15 轮),需模型支持 Function Calling |
+| 🦾 Agent 模式 | 允许模型自主多步调用 12 个内置工具(单次最多 15 轮),需模型支持 Function Calling |
 | 工具配置 | 按工具粒度启停(Agent 模式下一行蓝色小字)。被关掉的工具不会出现在模型的工具清单里,也无法被调用——不放心"读剪贴板/发通知"就关掉对应爪子 |
 
 ## 架构(v4.0)
@@ -102,7 +103,7 @@ v4.0 完成了绞杀式重写——UI 换 Compose(MVI 单向数据流),领域层
 ```
 :app          Compose UI(ChatScreen + MVI ChatViewModel)+ Android 工具 + Compose 设置对话框
 :core-agent   纯 JVM:AgentLoop(ReAct 循环)+ OpenAI 协议序列化 + SSE 解析 + 传输接口 + 工具注册表 + 用量台账 + MCP 客户端
-:core-tools   纯 JVM:六只纯工具爪子(计算器/时钟/笔记/抓取/搜索/规划)
+:core-tools   纯 JVM:七只纯工具爪子(计算器/时钟/笔记/抓取/搜索/规划/JS 沙箱)
 :data         Room 持久化:会话树三表(branches/messages/meta)+ 旧 JSON 自动迁移
 ```
 
