@@ -77,6 +77,12 @@ class AgentTaskService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // CANCEL action: user tapped ✕ on the notification.
+        if (intent?.action == ACTION_CANCEL) {
+            handleCancel()
+            return START_NOT_STICKY
+        }
+
         val task = pending ?: run {
             stopSelf()
             return START_NOT_STICKY
@@ -95,6 +101,40 @@ class AgentTaskService : Service() {
             stopSelf()
         }
         return START_NOT_STICKY
+    }
+
+    /**
+     * Cancel the currently running turn. Idempotent: if no turn is active,
+     * this is a no-op. Writes "(后台任务已取消)" to the task's branch and
+     * clears the foreground notification.
+     */
+    private fun handleCancel() {
+        // The coroutine scope is the only handle to the running turn; cancel
+        // it, which triggers the CancellationException path in runTurn.
+        scope.cancel()
+        ChatRepository.backgroundTaskRunning = false
+        // Best-effort: try to file a cancellation message into the active branch.
+        try {
+            val tree = ChatRepository.tree
+            val branchId = tree.activeBranchId
+            tree.appendMessage("assistant", "⏹ 后台任务已取消")
+            ChatRepository.save()
+        } catch (_: Exception) {
+            // Filing is best-effort; the flag reset is what matters.
+        }
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (_: Exception) {
+            // Already stopped — no-op.
+        }
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.cancel(FOREGROUND_ID)
+            nm?.cancel(RESULT_ID)
+        } catch (_: Exception) {
+            // No-op.
+        }
+        stopSelf()
     }
 
     /** One full agent turn; never throws — every failure becomes a message. */

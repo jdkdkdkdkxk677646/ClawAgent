@@ -1,6 +1,7 @@
 package com.openclaw.clawagent.conversation
 
 import androidx.room.Entity
+import androidx.room.Fts4
 import androidx.room.PrimaryKey
 
 /**
@@ -35,3 +36,22 @@ data class MessageEntity(
     val content: String,
     val timestamp: Long,
 )
+
+/**
+ * FTS4 virtual table for searching message content across all branches.
+ *
+ * External content FTS: [contentEntity] points back to [MessageEntity], so
+ * triggers keep the FTS index in sync automatically (defined in the migration
+ * SQL). Query via [ConversationDao.searchMessages].
+ */
+@Fts4(contentEntity = MessageEntity::class)
+@Entity(tableName = "message_fts")
+data class MessageFtsEntity(
+    @PrimaryKey val rowid: Long = 0,
+    val branchId: String = "",
+    val idx: Int = 0,
+    val role: String = "",
+    val content: String = "",
+    val timestamp: Long = 0,
+)
+

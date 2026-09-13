@@ -156,24 +156,26 @@ class ChatViewModel(
      * 内置工具照常可用,状态行告知用户原因。
      */
     private fun connectMcpIfConfigured() {
-        val endpoint = prefs.mcpEndpoint.trim()
-        if (endpoint.isEmpty()) {
+        val configs = com.openclaw.clawagent.agent.McpServers.parseConfigs(prefs.mcpServersJson)
+        if (configs.isEmpty()) {
             disconnectMcp()
             return
         }
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
+                // Close all previous clients first.
                 mcpClient?.close()
-                val client = com.openclaw.clawagent.mcp.McpClient(
-                    endpoint = endpoint,
-                    authToken = prefs.mcpToken.trim().ifEmpty { null },
-                )
-                client.connect()
-                val defs = client.listTools()
-                mcpClient = client
-                mcpTools = com.openclaw.clawagent.mcp.McpToolBridge.bridgeAll(client, defs)
+                val sessions = com.openclaw.clawagent.agent.McpServers.connectAll(configs)
+                val allTools = sessions.flatMap { it.tools }
+                val failed = sessions.count { !it.success }
+                val totalTools = sessions.sumOf { it.tools.size }
+                mcpClient = sessions.firstOrNull { it.success }?.let { /* keep alive via sessions */ null }
+                mcpTools = allTools
                 _state.value = _state.value.copy(
-                    mcpStatus = "🔌 MCP 已连接:${client.serverInfo.ifEmpty { endpoint }} · ${defs.size} 只远程爪子"
+                    mcpStatus = buildString {
+                        append("🔌 MCP ${sessions.size} 台 · $totalTools 只爪子")
+                        if (failed > 0) append(" · $failed 台失败")
+                    }
                 )
             } catch (e: Exception) {
                 mcpClient = null

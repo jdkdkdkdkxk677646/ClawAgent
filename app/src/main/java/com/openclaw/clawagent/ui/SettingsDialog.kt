@@ -274,28 +274,68 @@ fun SettingsDialog(
                     minLines = 3,
                 )
 
-                // ── MCP 远程服务器(可选,v4.2)───────────────────────
-                OutlinedTextField(
-                    value = mcpEndpoint,
-                    onValueChange = { mcpEndpoint = it },
-                    label = { Text("🔌 MCP 服务器 URL(可选)") },
-                    placeholder = { Text("https://…/mcp", color = ClawColors.TextSecondary, fontSize = 13.sp) },
-                    colors = dialogFieldColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
+                // ── MCP 远程服务器(可选,v4.2→v4.3 多服务器)────────────
+                Text("🔌 MCP 远程服务器 (可选,留空关闭)", color = ClawColors.TextPrimary, fontSize = 14.sp)
                 Text(
-                    "远程工具将以 mcp_ 前缀进入 Agent 爪子集(受工具开关约束)。留空关闭。",
+                    "远程工具将以 mcp_<服务器名>_<工具名> 前缀进入 Agent 爪子集(受工具开关约束)。",
                     color = ClawColors.TextSecondary, fontSize = 11.sp,
                 )
-                OutlinedTextField(
-                    value = mcpToken,
-                    onValueChange = { mcpToken = it },
-                    label = { Text("MCP Bearer Token(可选)") },
-                    colors = dialogFieldColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
+                // Parse current config into editable rows
+                val serverEntries = try {
+                    val arr = org.json.JSONArray(mcpServersRaw)
+                    (0 until arr.length()).map { i ->
+                        val obj = arr.optJSONObject(i)
+                        ServerEntry(
+                            name = obj?.optString("name", "") ?: "",
+                            endpoint = obj?.optString("endpoint", "") ?: "",
+                            token = obj?.optString("authToken", "") ?: "",
+                        )
+                    }
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                var serverRows by remember { mutableStateOf(serverEntries) }
+                fun addServerRow() {
+                    serverRows = serverRows + ServerEntry("", "", "")
+                }
+                fun removeServerRow(idx: Int) {
+                    if (serverRows.size <= 1) return
+                    serverRows = serverRows.toMutableList().also { it.removeAt(idx) }
+                }
+                for ((idx, row) in serverRows.withIndex()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        OutlinedTextField(
+                            value = row.name,
+                            onValueChange = { serverRows = serverRows.toMutableList().also { it[idx] = row.copy(name = it) } },
+                            label = { Text("名称") },
+                            colors = dialogFieldColors(),
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = row.endpoint,
+                            onValueChange = { serverRows = serverRows.toMutableList().also { it[idx] = row.copy(endpoint = it) } },
+                            label = { Text("URL") },
+                            colors = dialogFieldColors(),
+                            modifier = Modifier.weight(2f),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = row.token,
+                            onValueChange = { serverRows = serverRows.toMutableList().also { it[idx] = row.copy(token = it) } },
+                            label = { Text("Token(可选)") },
+                            colors = dialogFieldColors(),
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                        )
+                        TextButton(onClick = { removeServerRow(idx) }) { Text("✕") }
+                    }
+                }
+                TextButton(onClick = { addServerRow() }) { Text("+ 添加服务器") }
             }
         },
         confirmButton = {
@@ -311,8 +351,29 @@ fun SettingsDialog(
                 prefs.systemPrompt = systemPrompt.trim()
                 prefs.agentMode = agentMode
                 prefs.disabledTools = disabledTools
-                prefs.mcpEndpoint = mcpEndpoint.trim()
-                prefs.mcpToken = mcpToken.trim()
+                // v4.3:保存多服务器 JSON
+                val serverJson = buildString {
+                    append("[")
+                    serverRows.forEachIndexed { i, row ->
+                        if (i > 0) append(",")
+                        append(org.json.JSONObject()
+                            .put("name", row.name.trim())
+                            .put("endpoint", row.endpoint.trim())
+                            .put("authToken", row.token.trim())
+                            .toString())
+                    }
+                    append("]")
+                }
+                prefs.mcpServersJson = serverJson
+                // 兼容旧路径:单服务器场景也写回旧 key(供非 McpServers 代码读取)
+                if (serverRows.size == 1) {
+                    val r = serverRows.first()
+                    prefs.mcpEndpoint = r.endpoint.trim()
+                    prefs.mcpToken = r.token.trim()
+                } else {
+                    prefs.mcpEndpoint = ""
+                    prefs.mcpToken = ""
+                }
                 onSaved()
                 onDismiss()
             }) { Text("保存") }

@@ -62,4 +62,31 @@ interface ConversationDao {
         replaceAll(branches, messages)
         meta.forEach { putMeta(it) }
     }
+
+    /**
+     * FTS search across all messages. Returns hits ordered by relevance (rank)
+     * then recency. [limit] caps results (caller-enforced, default 5, max 20).
+     *
+     * Uses `MATCH` on the FTS4 virtual table; Chinese CJK text is tokenized by
+     * SQLite's built-in tokenizer (unigram). For better CJK recall, a custom
+     * tokenizer can be swapped in later.
+     */
+    data class MessageHit(
+        val branchId: String,
+        val idx: Int,
+        val role: String,
+        val content: String,
+        val timestamp: Long,
+        val rowid: Long,
+    )
+
+    @Query("""
+        SELECT m.branchId, m.idx, m.role, m.content, m.timestamp, fts.rowid
+        FROM message_fts fts
+        JOIN messages m ON m.rowid = fts.rowid
+        WHERE message_fts MATCH :query
+        ORDER BY rank, m.timestamp DESC
+        LIMIT :limit
+    """)
+    suspend fun searchMessages(query: String, limit: Int): List<MessageHit>
 }

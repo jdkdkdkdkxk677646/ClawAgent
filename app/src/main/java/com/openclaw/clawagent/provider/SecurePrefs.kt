@@ -142,6 +142,7 @@ class SecurePrefs(context: Context) {
      * MCP (Model Context Protocol) remote server endpoint, v4.2. Empty means
      * "no MCP" — the toolbox is the built-in claws only. A Streamable-HTTP
      * MCP server URL; tools discovered there ride in with an `mcp_` prefix.
+     * @deprecated Use [mcpServersJson] instead (multi-server since v4.3).
      */
     var mcpEndpoint: String
         get() = plain.getString(KEY_MCP_ENDPOINT, "") ?: ""
@@ -151,6 +152,31 @@ class SecurePrefs(context: Context) {
     var mcpToken: String
         get() = plain.getString(KEY_MCP_TOKEN, "") ?: ""
         set(value) = plain.edit().putString(KEY_MCP_TOKEN, value).apply()
+
+    /**
+     * Multi-server MCP config, v4.3. JSON array of {name, endpoint, authToken}.
+     * Default "[]" (no servers). Read-compat with legacy mcpEndpoint/mcpToken:
+     * if this key is empty but legacy mcpEndpoint is non-empty, synthesize a
+     * single-entry config and write it back (one-time migration).
+     */
+    var mcpServersJson: String
+        get() {
+            val json = plain.getString(KEY_MCP_SERVERS_JSON, "") ?: ""
+            if (json.isNotEmpty()) return json
+            // Legacy migration: single endpoint → one-entry config
+            val ep = plain.getString(KEY_MCP_ENDPOINT, "").orEmpty()
+            if (ep.isEmpty()) return ""
+            val host = try { java.net.URL(ep).host } catch (_: Exception) { ep.substringBefore('/') }
+            val token = plain.getString(KEY_MCP_TOKEN, "").orEmpty()
+            val migrated = org.json.JSONObject()
+                .put("name", host)
+                .put("endpoint", ep)
+                .put("authToken", token)
+                .toString()
+            plain.edit().putString(KEY_MCP_SERVERS_JSON, "[$migrated]").apply()
+            return "[$migrated]"
+        }
+        set(value) = plain.edit().putString(KEY_MCP_SERVERS_JSON, value).apply()
 
     /**
      * Non-sensitive KV surface for the daily token ledger
