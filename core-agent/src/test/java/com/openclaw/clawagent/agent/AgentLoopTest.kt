@@ -161,4 +161,39 @@ class AgentLoopTest {
         )
         assertTrue(events.last() !is AgentEvent.Done)
     }
+
+    // ── text-embedded tool calls (fallback path) ──────────────────
+
+    @Test
+    fun `text-embedded call naming a registered tool is executed`() = runBlocking {
+        val embedded = """
+            ```json
+            {"name":"echo","parameters":{"v":"4"}}
+            ```
+        """.trimIndent()
+        val transport = FakeTransport(
+            listOf(
+                listOf(delta(embedded)),
+                listOf(delta("done"), ChatService.StreamEvent.Done),
+            )
+        )
+        val events = AgentLoop(transport).run(request(echoResult = "4")).toList()
+        assertTrue(events.any { it is AgentEvent.ToolResult && it.name == "echo" })
+        assertTrue(events.last() is AgentEvent.Done)
+        val toolMsg = transport.seenHistories[1].firstOrNull { it.role == "tool" }
+        assertTrue("tool result must be fed back", toolMsg != null)
+        assertEquals("4", toolMsg!!.content)
+    }
+
+    @Test
+    fun `text-embedded call naming an unregistered tool is ignored`() = runBlocking {
+        val embedded = """{"name":"delete_everything","parameters":{}}"""
+        val transport = FakeTransport(
+            listOf(listOf(delta(embedded), ChatService.StreamEvent.Done))
+        )
+        val events = AgentLoop(transport).run(request()).toList()
+        assertTrue(events.none { it is AgentEvent.ToolResult })
+        assertTrue(events.last() is AgentEvent.Done)
+        assertEquals(1, transport.requests)
+    }
 }

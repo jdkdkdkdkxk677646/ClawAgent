@@ -67,8 +67,16 @@ class AgentLoop(private val transport: com.openclaw.clawagent.provider.ChatTrans
             }
 
             if (failed) return@flow
-            val calls = requestedCalls
-            if (calls.isNullOrEmpty()) {
+            val calls = requestedCalls?.takeIf { it.isNotEmpty() }
+                ?: ToolCallParser.parse(roundContent)
+                    // Fallback for providers that print the call as JSON text
+                    // instead of using the native tool_calls channel. Only calls
+                    // naming a *registered* tool are honoured, so prose that
+                    // merely discusses JSON can never trigger execution.
+                    .filter { request.toolset.names.contains(it.name) }
+                    .map { ChatService.ToolCall(it.id, it.name, it.argumentsJson()) }
+                    .ifEmpty { null }
+            if (calls == null) {
                 emit(AgentEvent.Done)
                 return@flow
             }

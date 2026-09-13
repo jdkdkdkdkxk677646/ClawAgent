@@ -40,8 +40,10 @@
 
 ## 交付记录
 
-(领取时填:领取时间;完成后填:完成时间 / commit / 关键决策 / 测试结果)
-- 领取时间:—
-- 完成时间:—
-- commit:—
-- 关键决策/测试结果:—
+- 领取时间:2026-09-13 12:50+0800
+- 完成时间:2026-09-13 13:15+0800
+- commit:(见看板回填)
+- 关键决策:解析器从 `:app` 迁入 `:core-agent`(纯 JVM,仅 org.json);**策略 3 弃用 `[^{}]*` 正则**,改为字符串/转义感知的平衡括号扫描(`matchBrace` 跟踪引号与转义),嵌套 `parameters` 从此可解析;围栏块整体解析失败时对块内文本再跑平衡扫描;支持 `tool_calls`(数组/对象)/`tool_call`/`tool_use`/裸 `{"name":…}` 四类形态;按 (name + 参数) 去重;全程不 throw,坏片段降级为"无调用";删除遗留 `BUILTIN_TOOL_NAMES` 死清单;`extractTextResponse` 同改平衡扫描。**AgentLoop 接线**:`requestedCalls` 为空时才调 `ToolCallParser.parse(roundContent)`,并**按 `request.toolset.names` 过滤**——只有命名已注册工具的调用才执行,散文里讨论 JSON 永不触发执行;结果非空则不 Done、继续下一轮
+- 测试结果:新增 `ToolCallParserTest` **12 用例全绿**(围栏裸调用/tool_calls 数组+嵌套/tool_use/散文平衡对象/围栏+散文/去重/不同参数保留/坏 JSON 不抛/纯聊天空/`extractTextResponse` 剔除与去围栏/`argumentsJson` 往返);`AgentLoopTest` 新增 **2 兜底用例**(文内嵌已注册工具→执行并回传 `role:"tool"`;文内嵌未注册工具→忽略且正常 Done);core 全量 **213 用例零回归**
+- **白名单外必要适配**:`AgentLoopTest.kt` 未列白名单,但"新增 AgentLoop 兜底用例"是本卡验收项的必需改动,已一并提交
+- 说明:app 侧旧 `ToolCallParser.kt` 已删除(迁移前经全仓库 grep 确认无其他引用);实现中一处 `JSONArray().apply{ add(...) }` 改为显式构造块
