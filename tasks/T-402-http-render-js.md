@@ -35,9 +35,10 @@
 
 ## 交付记录
 
-(领取时填:领取时间;完成后填:完成时间 / commit / 关键决策 / 测试结果)
-- 领取时间:—
-- 完成时间:—
-- commit:—
+- 领取时间:2026-09-13 12:00+0800
+- 完成时间:2026-09-13 12:20+0800
+- commit:(见看板回填)
 - 待接线:`app/.../agent/AgentWiring.kt` 中 `HttpRequestTool()` 改为 `HttpRequestTool(AndroidWebRenderer(context.applicationContext))`(由 T-405 执行)
-- 关键决策/测试结果:—
+- 关键决策:`WebRenderer` 接口置于 `:core-tools`(守住无 `android.*` import 的物理边界),`AndroidWebRenderer` 置于 `:app`;`HttpRequestTool` 构造函数加 `renderer: WebRenderer? = null`(默认空,不接线也能编译);渲染结果走**同一套** `htmlToText` + `truncate` 管线(测试断言两模式产出同一正文);渲染墙钟预算 12s;无引擎/渲染失败/空结果三条路径均降级为可读字符串(execute 永不 throw)
+- 测试结果:新增 `HttpRequestToolRenderTest` **7 用例全绿**(委托渲染器/共用净化管线/无引擎降级/失败重试提示/空页反爬提示/默认 false 短路/非法 URL 先于渲染拒绝);core 全量 **181 用例零回归**
+- 说明:`AndroidWebRenderer` 的 WebView 卫生(JS + DOM storage 开,图片/文件/content/弹窗关,成功/失败/超时三路径必 destroy,全局兜底 latch)本地沙盒无法编译(`:app` 需 Android SDK),由 CI 编译 + 真机验收覆盖
