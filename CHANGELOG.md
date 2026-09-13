@@ -6,11 +6,15 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [v4.3.0] - 2026-09-13
 
 ### Added
 
-- 无
+- **Agent 后台任务**：发送栏 ☕→🚀 切换后台执行，回合跑在前台服务里，锁屏/切走不中断，完成推送通知，结果自动写回会话。`AgentTaskService` 前台服务 + 多轮 AgentLoop 循环，后台与主会话共享同一会话树。
+
+### Fixed
+
+- Robolectric 测试中会话树泄漏：`reset()` 重新绑定状态，避免跨测试污染。
 
 ---
 
