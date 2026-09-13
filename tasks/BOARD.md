@@ -84,11 +84,28 @@
 - **Wave 2(独占)**:T-405——唯一持有 `app/.../agent/AgentWiring.kt` 的卡(统一完成 T-401/T-402 的"待接线"条目),并吃 `README.md` + `CHANGELOG.md`;须等 Wave 1 全部合入。
 - 热点文件提示:`AgentWiring.kt` 本批按铁律 2 处理——Wave 1 任何卡都**不改**它,需要接线的写入交付记录,T-405 统一做。
 
+### 第六批(T-501~504,记忆与控制面)
+
+> 本批目标:补 Agent 的"记忆面"与"控制面"——跨会话历史检索(`search_history` 新爪子)、MCP 多服务器、后台回合取消。沿用第五批约定:看板只记时间不记名字。**v4.3.0 已发版**(tag 已打、APK 已挂 Releases),本批为下一个版本蓄力。
+
+| 任务号 | 标题 | 难度 | 状态 | 领取时间 | 完成时间 | 交付 commit | 交付摘要 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| T-501 | MCP 多服务器 | ⭐⭐ | todo | — | — | — | — |
+| T-502 | 会话跨库检索(FTS) | ⭐⭐⭐ | todo | — | — | — | — |
+| T-503 | 后台回合取消 | ⭐⭐ | todo | — | — | — | — |
+| T-504 | 第六批收尾:接线 + README/CHANGELOG | ⭐ | todo | — | — | — | — |
+
+**第六批波次(白名单互斥已核对)**
+
+- **Wave 1(三卡全并行)**:T-501(`agent/McpServers.kt`新 + `provider/SecurePrefs.kt` + `ui/SettingsDialog.kt` + `ui/ChatViewModel.kt` 的 MCP 段)‖ T-502(`data/**` 的 FTS + 迁移 + `agent/HistoryTool.kt`新)‖ T-503(`task/AgentTaskService.kt` + 测试)。三卡文件集两两不相交。
+- **Wave 2(独占)**:T-504——唯一持有 `AgentWiring.kt`(接 T-502 的 `HistoryTool`),并吃 `README.md` + `CHANGELOG.md`;须等 Wave 1 全部合入。
+- 风险提示:T-502 动 Room schema(version+1),动手前先读 `ClawDatabase.kt` 确认迁移策略;迁移测试不过不许交付。
+
 ## 项目速览(所有 AI 必读,以 main 分支为准)
 
 - **产品**:Claw Agent——真正会干活的 Android AI Agent(工具调用/联网/记忆/提醒/MCP/后台任务)。
-- **版本**:v4.3.0-alpha.1(versionCode 15),Kotlin 1.9.20 + Android SDK 34(minSdk 26),Compose UI + MVI。
-- **多模块**:`:app`(Compose UI + Android 工具 + 后台服务)、`:core-agent`(纯 JVM:AgentLoop/OpenAI 协议/SSE/MCP 客户端/用量台账)、`:core-tools`(纯 JVM 六工具)、`:data`(Room 会话树)。`grep -rn "android\." core-agent/src/main core-tools/src/main` 必须为零——禁 Android import。
+- **版本**:v4.3.0(versionCode 16,tag 已发、APK 已挂 Releases),Kotlin 1.9.20 + Android SDK 34(minSdk 26),Compose UI + MVI。
+- **多模块**:`:app`(Compose UI + Android 工具 + 后台服务)、`:core-agent`(纯 JVM:AgentLoop/OpenAI 协议/SSE/MCP 客户端/用量台账)、`:core-tools`(纯 JVM 七工具)、`:data`(Room 会话树)。`grep -rn "android\." core-agent/src/main core-tools/src/main` 必须为零——禁 Android import。
 - **MVI**:`ui/ChatViewModel.kt` 持有 ChatUiState/ChatIntent/ChatEffect 单向流;消息列表是 RecyclerView(`MessageAdapter`,ListAdapter+DiffUtil)经 AndroidView 桥接进 Compose。
 - **会话树所有权**:`task/ChatRepository.kt` 进程单例持 tree/storage/prefs/chatService/agentLoop;ViewModel 经 `private val tree get() = ChatRepository.tree` 引用;后台任务 `task/AgentTaskService.kt`(前台服务)与 VM 共享同一棵树。
 - **MCP**:`:core-agent` 的 `mcp/` 包(Streamable HTTP,spec 2025-11-25);远程工具以 `mcp_` 前缀进工具箱。
@@ -112,10 +129,10 @@
 
 **产品 / 能力**
 - 更多 Agent 爪子(日历 / 联系人 / 文件等,受权限与安全约束)——**代码执行、抓取 JS 渲染已立卡:第五批 T-401/T-402**
-- MCP 增强:多服务器、更多鉴权方式、SSE 传输
-- 会话搜索 / 跨会话检索(笔记检索升级已立卡:第五批 T-403;会话检索尚未立卡)
+- MCP 增强:多服务器(**已立卡:第六批 T-501**)、更多鉴权方式、SSE 传输
+- 会话搜索 / 跨会话检索(笔记检索:第五批 T-403;**会话检索已立卡:第六批 T-502**)
 - 语音输入 / TTS 输出
-- 后台任务增强:取消、队列、多任务并行
+- 后台任务增强:取消(**已立卡:第六批 T-503**)、队列、多任务并行
 - 服务商与模型:更多预设 / 本地模型打磨(Ollama 已支持)
 - i18n 与无障碍
 
