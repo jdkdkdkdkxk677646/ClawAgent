@@ -38,6 +38,6 @@
 
 - 领取时间:2026-09-13 10:40+0800
 - 完成时间:2026-09-13 11:50+0800
-- commit:(见看板回填)
+- commit:7d2f161
 - 关键决策:移除空的 `## [Unreleased]` 段,新增 `## [v4.3.0] - 2026-09-13` 版本节;保留 `## [v4.3.0-alpha.1]` 历史节点(与 v4.2.0 的 alpha + 正式并存的既有风格一致);条目覆盖后台任务/消息分页/表格渲染/拍照整合/系统分享/后台横幅 + Fixed 两条;`versionCode 15→16`、`versionName "4.3.0-alpha.1"→"4.3.0"`
 - 维护者动作:① 打 tag `v4.3.0` 触发 Release workflow;② 配置签名 secrets(`KEYSTORE_BASE64`/`KEYSTORE_PASSWORD`/`KEY_ALIAS`/`KEY_PASSWORD`);③ 真机验收(相机往返/分页手势/系统分享/后台横幅),T-306 视情况决定是否做
