@@ -76,7 +76,7 @@ class NoteToolEdgeTest {
         save("Grok3推理配置", "模型参数")
         val out = tool.execute("""{"action":"search","query":"Grok3"}""")
         assertTrue(out, out.contains("Grok3推理配置"))
-        assertTrue(out, out.contains("标题命中"))
+        assertTrue(out, out.contains("精确"))
     }
 
     @Test

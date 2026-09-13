@@ -100,38 +100,44 @@ class NoteTool(private val baseDir: File) : AgentTool {
     }
 
     /**
-     * Keyword lookup across titles and bodies (case-insensitive contains).
-     * The agent's stand-in for semantic memory recall: recall first what is
-     * verbatim, and the model does the fuzzy matching on top.
+     * Relevance-ranked lookup across titles and bodies. Recall no longer needs
+     * a verbatim substring: [NoteSearchLogic] tokenises the query (latin words
+     * + CJK bigrams), scores every note (exact hit ≫ title ≫ body, with an
+     * all-tokens bonus) and returns the top matches with a snippet. This is the
+     * agent's stand-in for semantic memory recall.
      */
     private fun search(query: String): String {
         if (query.isBlank()) return "错误:search 需要 query 参数。"
         ensureDir()
         val files = baseDir.listFiles { f -> f.isFile && f.extension == "md" }
             ?.sortedBy { it.nameWithoutExtension }
-            ?: return "笔记本是空的。"
-        val hits = files.mapNotNull { f ->
-            val title = f.nameWithoutExtension
-            val content = f.readText()
-            val idx = content.indexOf(query, ignoreCase = true)
-            when {
-                title.contains(query, ignoreCase = true) ->
-                    "- 「$title」(标题命中)"
+            ?: emptyList()
+        if (files.isEmpty()) return "笔记本是空的。"
 
-                idx >= 0 -> {
-                    val start = (idx - 40).coerceAtLeast(0)
-                    val end = (idx + query.length + 60).coerceAtMost(content.length)
-                    val ellipsisStart = if (start > 0) "…" else ""
-                    val ellipsisEnd = if (end < content.length) "…" else ""
-                    "- 「$title」:${ellipsisStart}${content.substring(start, end).replace("\n", " ")}$ellipsisEnd"
-                }
+        val needle = query.trim()
+        val ranked = files.mapNotNull { file ->
+            val title = file.nameWithoutExtension
+            val body = file.readText()
+            val score = NoteSearchLogic.score(query, title, body)
+            if (score > 0) Ranked(title, body, score) else null
+        }.sortedByDescending { it.score }
 
-                else -> null
+        if (ranked.isEmpty()) return "笔记本中没有与「$query」相关的笔记。"
+
+        val top = ranked.take(TOP_MATCHES)
+        return buildString {
+            append("找到 ${top.size} 条(按相关度,共扫描 ${files.size} 条):")
+            top.forEach { hit ->
+                val exact = hit.title.contains(needle, ignoreCase = true) ||
+                    hit.body.contains(needle, ignoreCase = true)
+                val tag = if (exact) "精确" else "相关度 ${hit.score}"
+                append("\n- 「").append(hit.title).append("」[").append(tag).append("]:")
+                    .append(NoteSearchLogic.snippet(hit.body, query))
             }
         }
-        return if (hits.isEmpty()) "笔记本中没有包含「$query」的笔记。"
-        else "找到 ${hits.size} 条:\n" + hits.joinToString("\n")
     }
+
+    private data class Ranked(val title: String, val body: String, val score: Int)
 
     private fun delete(title: String): String {
         if (title.isBlank()) return "错误:delete 需要 title 参数。"
@@ -172,5 +178,6 @@ class NoteTool(private val baseDir: File) : AgentTool {
 
     companion object {
         private const val MAX_TITLE_LEN = 80
+        private const val TOP_MATCHES = 5
     }
 }

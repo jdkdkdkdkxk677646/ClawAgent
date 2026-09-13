@@ -120,7 +120,7 @@ class NoteToolTest {
     fun `search matches titles case-insensitively`() {
         save("Coffee Preferences", "latte")
         val out = tool.execute("""{"action":"search","query":"coffee"}""")
-        assertTrue(out, out.contains("标题命中"))
+        assertTrue(out, out.contains("精确"))
     }
 
     @Test
@@ -135,12 +135,19 @@ class NoteToolTest {
     fun `search with no hits reports gracefully`() {
         save("笔记A", "hello")
         val out = tool.execute("""{"action":"search","query":"不存在的东西"}""")
-        assertTrue(out, out.contains("没有包含"))
+        assertTrue(out, out.contains("没有与"))
     }
 
     @Test
     fun `search requires a query`() {
         assertTrue(tool.execute("""{"action":"search"}""").startsWith("错误"))
+    }
+
+    @Test
+    fun `search recalls by token without a verbatim hit`() {
+        save("拿铁口味", "早上常去楼下买咖啡,大杯少冰")
+        val out = tool.execute("""{"action":"search","query":"咖啡偏好"}""")
+        assertTrue(out, out.contains("拿铁口味"))
     }
 
     // ── slug safety ───────────────────────────────────────────────
