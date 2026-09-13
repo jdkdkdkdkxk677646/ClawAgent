@@ -17,7 +17,7 @@ class AgentToolboxTest {
     @Test
     fun `core toolbox registers the expected pure tools`() {
         val expected = listOf(
-            "calculator", "current_time", "notes", "http_get", "web_search", "task_plan"
+            "calculator", "current_time", "notes", "http_get", "web_search", "task_plan", "run_js"
         )
         assertEquals(expected, coreToolbox().names)
     }
@@ -25,7 +25,7 @@ class AgentToolboxTest {
     @Test
     fun `requestJson builds openai function schema`() {
         val tools = coreToolbox().requestJson()
-        assertEquals(6, tools.length())
+        assertEquals(7, tools.length())
         val first = tools.getJSONObject(0)
         assertEquals("function", first.getString("type"))
         val fn = first.getJSONObject("function")

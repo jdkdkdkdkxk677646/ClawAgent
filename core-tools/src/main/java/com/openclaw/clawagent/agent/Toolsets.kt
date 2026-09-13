@@ -11,8 +11,9 @@ import java.io.File
 object Toolsets {
 
     /**
-     * Pure-JVM claw: math, clock, notes (+search), web search, http fetch and
-     * planning. [notesDir] must be provided (tests pass a temp dir).
+     * Pure-JVM claw: math, clock, notes (+search), web search, http fetch,
+     * planning and the JavaScript sandbox ([JsTool]). [notesDir] must be
+     * provided (tests pass a temp dir).
      */
     fun core(notesDir: File): AgentToolbox = AgentToolbox(
         listOf(
@@ -22,6 +23,7 @@ object Toolsets {
             HttpRequestTool(),
             WebSearchTool(),
             PlanTool(),
+            JsTool(),
         )
     )
 }

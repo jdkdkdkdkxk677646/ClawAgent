@@ -18,6 +18,8 @@ dependencies {
     implementation(project(":core-agent"))
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.json:json:20240205")
+    // T-401: embedded JavaScript engine for the run_js sandbox.
+    implementation("org.mozilla:rhino:1.7.14")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240205")
