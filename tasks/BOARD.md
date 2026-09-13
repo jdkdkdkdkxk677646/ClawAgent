@@ -8,8 +8,8 @@
 2. **`MainActivity.kt` 是热点文件,只有白名单里明确列出它的卡(当前 T-202)可以改。** 需要接线的地方,在交付记录里写"待接线:xxx",由维护者统一做。
 3. **一个任务一个 commit**,message 以 `[T-201]` 这样的任务号开头。
 4. **交付前自检**:`./gradlew :app:testDebugUnitTest :core-agent:test :core-tools:test :data:testDebugUnitTest` 全绿;新代码附单元测试;工具类遵循"execute 永不 throw,失败返回错误字符串"的项目约定。
-5. **完成动作**:① 代码推到 main(独立 commit);② 在下方看板表格把状态改为 `done` 并填认领人/commit/说明;③ 在任务卡末尾"交付记录"补全。三处都要填。
-6. **领任务动作**:把状态改为 `claimed`,填认领人与时间。状态是 `claimed` 且超过 24 小时无交付 commit 的,其他 AI 可以改回 `todo` 接手。
+5. **完成动作**:① 代码推到 main(独立 commit);② 在下方看板表格把状态改为 `done` 并填**完成时间**/commit/说明;③ 在任务卡末尾"交付记录"补全。三处都要填。
+6. **领任务动作**:把状态改为 `claimed`,填**领取时间**。自第五批起**只记时间、不记名字**(领取时间 = 开始干活的时间;完成时间 = 交付 commit 推送的时间,格式 `2026-09-13 08:10+0800`)。状态是 `claimed` 且超过 24 小时无交付 commit 的,其他 AI 可以改回 `todo` 接手。
 
 ## 怎么干活(给 AI 的操作指引)
 
@@ -66,6 +66,24 @@
 - Wave 2(独占):**T-306**,吃 `MainActivity.kt` + `ChatViewModel.kt` + `MessageAdapter.kt`;且**可选**——先真机验收 T-301 分页,不抖就不做。
 - **非 AI 任务(维护者)**:打 tag `v4.3.0`、配置签名 secrets、真机验收(相机/分页/分享/后台横幅)。详见 T-305 卡。
 
+### 第五批(T-401~405,Agent 能力补强)
+
+> 本批目标:把 Agent 的"能干活的爪子"补到下一代——代码执行沙箱、动态页面渲染、记忆检索升级、工具调用兜底。**自本批起看板只记时间不记名字**:领取时填 `领取时间`,交付时填 `完成时间`。
+
+| 任务号 | 标题 | 难度 | 状态 | 领取时间 | 完成时间 | 交付 commit | 交付摘要 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| T-401 | run_js 代码执行沙箱(Rhino) | ⭐⭐⭐ | todo | — | — | — | — |
+| T-402 | http_get 增加 JS 渲染模式 | ⭐⭐⭐ | todo | — | — | — | — |
+| T-403 | notes 检索升级(CJK 分词评分) | ⭐⭐ | todo | — | — | — | — |
+| T-404 | ToolCallParser 迁移加固 + AgentLoop 兜底接线 | ⭐⭐ | todo | — | — | — | — |
+| T-405 | 第五批收尾:AgentWiring 接线 + README/CHANGELOG | ⭐ | todo | — | — | — | — |
+
+**第五批波次(白名单互斥已核对)**
+
+- **Wave 1(四卡全并行)**:T-401(只碰 `core-tools` 的 `JsTool.kt`新/`Toolsets.kt`/`build.gradle.kts` + 测试)‖ T-402(`core-tools` 的 `WebRenderer.kt`新/`HttpTool.kt` + `app` 的 `AndroidWebRenderer.kt`新)‖ T-403(`core-tools` 的 `NoteSearchLogic.kt`新/`NoteTool.kt` + notes 测试)‖ T-404(`core-agent` 的 `ToolCallParser.kt`新/`AgentLoop.kt` + 删 app 旧 parser)。四卡文件集两两不相交。
+- **Wave 2(独占)**:T-405——唯一持有 `app/.../agent/AgentWiring.kt` 的卡(统一完成 T-401/T-402 的"待接线"条目),并吃 `README.md` + `CHANGELOG.md`;须等 Wave 1 全部合入。
+- 热点文件提示:`AgentWiring.kt` 本批按铁律 2 处理——Wave 1 任何卡都**不改**它,需要接线的写入交付记录,T-405 统一做。
+
 ## 项目速览(所有 AI 必读,以 main 分支为准)
 
 - **产品**:Claw Agent——真正会干活的 Android AI Agent(工具调用/联网/记忆/提醒/MCP/后台任务)。
@@ -93,9 +111,9 @@
 - 可观测性:崩溃 / 日志(需先评估隐私与依赖体积)
 
 **产品 / 能力**
-- 更多 Agent 爪子(日历 / 联系人 / 文件 / 代码执行等,受权限与安全约束)
+- 更多 Agent 爪子(日历 / 联系人 / 文件等,受权限与安全约束)——**代码执行、抓取 JS 渲染已立卡:第五批 T-401/T-402**
 - MCP 增强:多服务器、更多鉴权方式、SSE 传输
-- 会话搜索 / 跨会话检索(笔记已有检索,会话没有)
+- 会话搜索 / 跨会话检索(笔记检索升级已立卡:第五批 T-403;会话检索尚未立卡)
 - 语音输入 / TTS 输出
 - 后台任务增强:取消、队列、多任务并行
 - 服务商与模型:更多预设 / 本地模型打磨(Ollama 已支持)
