@@ -31,7 +31,13 @@ v4.3 的后台任务只有"开始"没有"停止":回合一旦进前台服务,锁
 ## 交付记录
 
 (领取时填:领取时间;完成后填:完成时间 / commit / 关键决策 / 测试结果)
-- 领取时间:—
-- 完成时间:—
-- commit:—
-- 关键决策/测试结果:—
+- 领取时间:2026-09-13 16:32+0800
+- 完成时间:2026-09-13 16:45+0800
+- commit:82d18ad
+- 关键决策/测试结果:
+  - AgentTaskService 通知追加 NotificationCompat.Action(✕ 取消),PendingIntent 指向 SERVICE 自身 ACTION_CANCEL
+  - onStartCommand 处理 ACTION_CANCEL:scope.cancel() 中断模型流 → stopForeground → 写"⏹ 后台任务已取消"到当前分支 → 清除通知
+  - 幂等:回合结束后 CANCEL 是 no-op (backgroundTaskRunning 已 false，不写消息)
+  - cancelRunning(context) 静态方法供外部调用
+  - AgentTaskServiceTest 新增 2 用例:mid-turn 取消 (标志复位/通知移除)/完成后取消 (幂等无副作用)
+  - 既有 6 用例零回归

@@ -1,7 +1,7 @@
 # T-501 · MCP 多服务器
 
 - 难度:⭐⭐
-- 状态:todo
+- 状态:**done**
 - 波次:**Wave 1(可与 T-502/T-503 并行)**——文件集与两者不相交。
 - 允许修改的文件(白名单,严格遵守):
   - `app/src/main/java/com/openclaw/clawagent/agent/McpServers.kt`(新建,多服务器编排)

@@ -38,7 +38,13 @@ Agent 的记忆目前只有 `notes`(跨会话笔记),但**聊过的历史会话�
 ## 交付记录
 
 (领取时填:领取时间;完成后填:完成时间 / commit / 关键决策 / 测试结果)
-- 领取时间:—
-- 完成时间:—
-- commit:—
-- 关键决策/测试结果:—
+- 领取时间:2026-09-13 16:32+0800
+- 完成时间:2026-09-13 16:45+0800
+- commit:82d18ad
+- 关键决策/测试结果:
+  - ConversationEntities 新增 MessageFtsEntity (@Fts4 contentEntity=MessageEntity)
+  - ClawDatabase version+1，新增 MIGRATION_1_2 (建 FTS 表 + AFTER INSERT/UPDATE/DELETE 触发器 + 一次性回填)
+  - ConversationDao 新增 searchMessages(query, limit) → JOIN...MATCH，按 rank/timestamp 排序
+  - HistoryTool.kt 新建，queryFn 注入作测试缝，limit 收口 [1,20]，空 query 报错，永不 throw
+  - HistoryToolTest 7 用例 (空查询/无命中/命中格式/limit 收口/默认 5/Room 升级回填/FTS 中文)
+  - 注:T-504 收尾时 AgentWiring 需挂 HistoryTool

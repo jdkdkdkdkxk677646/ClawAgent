@@ -90,9 +90,9 @@
 
 | 任务号 | 标题 | 难度 | 状态 | 领取时间 | 完成时间 | 交付 commit | 交付摘要 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T-501 | MCP 多服务器 | ⭐⭐ | todo | — | — | — | — |
-| T-502 | 会话跨库检索(FTS) | ⭐⭐⭐ | todo | — | — | — | — |
-| T-503 | 后台回合取消 | ⭐⭐ | todo | — | — | — | — |
+| T-501 | MCP 多服务器 | ⭐⭐ | **done** | 2026-09-13 16:32+0800 | 2026-09-13 16:45+0800 | 82d18ad | McpServers.kt (parseConfigs+connectAll,单台失败降级/跨服冲突命名) + SecurePrefs.mcpServersJson+旧 key 迁移 + SettingsDialog 多行列表 + ChatViewModel 改调 connectAll + McpServersTest 8 用例 |
+| T-502 | 会话跨库检索(FTS) | ⭐⭐⭐ | **done** | 2026-09-13 16:32+0800 | 2026-09-13 16:45+0800 | 82d18ad | ConversationEntities MessageFtsEntity (@Fts4) + ClawDatabase v1→v2 Migration (建表 + 触发器 + 回填) + ConversationDao searchMessages + HistoryTool.kt (queryFn 注入) + HistoryToolTest 7 用例;待 T-504 接线 |
+| T-503 | 后台回合取消 | ⭐⭐ | **done** | 2026-09-13 16:32+0800 | 2026-09-13 16:45+0800 | 82d18ad | AgentTaskService 通知追加 ✕ Action + ACTION_CANCEL 处理 (scope.cancel+stopForeground+写\"已取消\") + cancelRunning() 静态方法 + AgentTaskServiceTest 新增 2 取消用例;幂等 no-op |
 | T-504 | 第六批收尾:接线 + README/CHANGELOG | ⭐ | todo | — | — | — | — |
 
 **第六批波次(白名单互斥已核对)**
