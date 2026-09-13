@@ -72,11 +72,11 @@
 
 | 任务号 | 标题 | 难度 | 状态 | 领取时间 | 完成时间 | 交付 commit | 交付摘要 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T-401 | run_js 代码执行沙箱(Rhino) | ⭐⭐⭐ | done | 2026-09-13 11:30+0800 | 2026-09-13 11:55+0800 | 04d2bd5 | JsTool(Rhino 解释模式 + ClassShutter 禁 Java + 5000 万指令/墙钟双限) + Toolsets 注册 + `JsToolTest` 12 用例;待 T-405 接线 |
-| T-402 | http_get 增加 JS 渲染模式 | ⭐⭐⭐ | done | 2026-09-13 12:00+0800 | 2026-09-13 12:20+0800 | — | WebRenderer 接口 + `render_js` 分支(共用净化/截断管线) + AndroidWebRenderer(WebView 主线程 + 三路径 destroy) + 7 用例;待 T-405 接线 |
-| T-403 | notes 检索升级(CJK 分词评分) | ⭐⭐ | done | 2026-09-13 12:25+0800 | 2026-09-13 12:45+0800 | — | NoteSearchLogic(拉丁整词 + CJK 二元组/精确 40·25 + 词元加权 + 全命中加成/snippet) + `NoteTool.search` Top5 重写 + 17 用例 |
-| T-404 | ToolCallParser 迁移加固 + AgentLoop 兜底接线 | ⭐⭐ | done | 2026-09-13 12:50+0800 | 2026-09-13 13:15+0800 | — | parser 迁入 core-agent + 平衡括号扫描(嵌套可解析)+ 去重;AgentLoop 按 `toolset.names` 过滤的文内调用兜底 + 12 用例 + 2 兜底用例 |
-| T-405 | 第五批收尾:AgentWiring 接线 + README/CHANGELOG | ⭐ | done | 2026-09-13 13:20+0800 | 2026-09-13 13:40+0800 | — | 接线 `JsTool()` + `HttpRequestTool(AndroidWebRenderer)`;README 12 只爪子 / `run_js` 行;CHANGELOG `[Unreleased]` 段收口第五批 |
+| T-401 | run_js 代码执行沙箱(Rhino) | ⭐⭐⭐ | done | 2026-09-13 11:30+0800 | 2026-09-13 11:55+0800 | 04d2bd5 | JsTool(Rhino 解释模式 + ClassShutter 禁 Java + 5000 万指令/墙钟双限) + Toolsets 注册 + `JsToolTest` 12 用例;已由 T-405 接线 |
+| T-402 | http_get 增加 JS 渲染模式 | ⭐⭐⭐ | done | 2026-09-13 12:00+0800 | 2026-09-13 12:20+0800 | 3e152a3 | WebRenderer 接口 + `render_js` 分支(共用净化/截断管线) + AndroidWebRenderer(WebView 主线程 + 三路径 destroy) + 7 用例;已由 T-405 接线 |
+| T-403 | notes 检索升级(CJK 分词评分) | ⭐⭐ | done | 2026-09-13 12:25+0800 | 2026-09-13 12:45+0800 | 7fcc75b | NoteSearchLogic(拉丁整词 + CJK 二元组/精确 40·25 + 词元加权 + 全命中加成/snippet) + `NoteTool.search` Top5 重写 + 17 用例 |
+| T-404 | ToolCallParser 迁移加固 + AgentLoop 兜底接线 | ⭐⭐ | done | 2026-09-13 12:50+0800 | 2026-09-13 13:15+0800 | 7fdb284 | parser 迁入 core-agent + 平衡括号扫描(嵌套可解析)+ 去重;AgentLoop 按 `toolset.names` 过滤的文内调用兜底 + 12 用例 + 2 兜底用例 |
+| T-405 | 第五批收尾:AgentWiring 接线 + README/CHANGELOG | ⭐ | done | 2026-09-13 13:20+0800 | 2026-09-13 13:40+0800 | 30e3484 | 接线 `JsTool()` + `HttpRequestTool(AndroidWebRenderer)`;README 12 只爪子 / `run_js` 行;CHANGELOG `[Unreleased]` 段收口第五批 |
 
 **第五批波次(白名单互斥已核对)**
 

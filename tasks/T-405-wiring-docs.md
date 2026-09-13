@@ -37,7 +37,7 @@
 
 - 领取时间:2026-09-13 13:20+0800
 - 完成时间:2026-09-13 13:40+0800
-- commit:(见看板回填)
+- commit:30e3484
 - 接线核对清单:
   - [x] **T-401 待接线** → `AgentWiring.forAndroid` 增加 `JsTool()`(置于 `PlanTool()` 之后,与 `Toolsets.core()` 顺序一致)
   - [x] **T-402 待接线** → `HttpRequestTool()` 改为 `HttpRequestTool(AndroidWebRenderer(context.applicationContext))`

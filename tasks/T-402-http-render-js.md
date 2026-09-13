@@ -37,7 +37,7 @@
 
 - 领取时间:2026-09-13 12:00+0800
 - 完成时间:2026-09-13 12:20+0800
-- commit:(见看板回填)
+- commit:3e152a3
 - 待接线:`app/.../agent/AgentWiring.kt` 中 `HttpRequestTool()` 改为 `HttpRequestTool(AndroidWebRenderer(context.applicationContext))`(由 T-405 执行)
 - 关键决策:`WebRenderer` 接口置于 `:core-tools`(守住无 `android.*` import 的物理边界),`AndroidWebRenderer` 置于 `:app`;`HttpRequestTool` 构造函数加 `renderer: WebRenderer? = null`(默认空,不接线也能编译);渲染结果走**同一套** `htmlToText` + `truncate` 管线(测试断言两模式产出同一正文);渲染墙钟预算 12s;无引擎/渲染失败/空结果三条路径均降级为可读字符串(execute 永不 throw)
 - 测试结果:新增 `HttpRequestToolRenderTest` **7 用例全绿**(委托渲染器/共用净化管线/无引擎降级/失败重试提示/空页反爬提示/默认 false 短路/非法 URL 先于渲染拒绝);core 全量 **181 用例零回归**
