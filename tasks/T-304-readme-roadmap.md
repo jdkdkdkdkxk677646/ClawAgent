@@ -27,4 +27,8 @@
 
 ## 交付记录
 
-(完成后填写:认领人 / commit / 关键决策)
+- 领取时间:2026-09-13 10:40+0800
+- 完成时间:—
+- commit:—
+- 关键决策:README Roadmap 中三项已打勾(v4.3.0 版本节也待落版);CHANGELOG + versionCode 改动随 T-305 一并交付。
+- 待推送:**git push 被 sandbox 阻断**,已把完整改动存入 `tasks/DELIVERABLES/t-304-305/` 目录,维护者 pull 后合入 main 即可。

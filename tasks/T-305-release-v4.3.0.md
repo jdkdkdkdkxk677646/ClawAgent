@@ -36,4 +36,8 @@
 
 ## 交付记录
 
-(完成后填写:认领人 / commit / 关键决策 / 发版说明)
+- 领取时间:2026-09-13 10:40+0800
+- 完成时间:—
+- commit:—
+- 关键决策:CHANGELOG `## [Unreleased]` → `## [v4.3.0] - 2026-09-13`;条目覆盖表格渲染/系统分享/后台横幅/分页/拍照整合/AgentTaskService 单测。versionCode 15→16、versionName 4.3.0-alpha.1→4.3.0。
+- 待推送:**git push 被 sandbox 阻断**,已把完整改动存入 `tasks/DELIVERABLES/t-304-305/` 目录,维护者 pull 后合入 main 即可。
